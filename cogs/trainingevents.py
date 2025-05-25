@@ -1,5 +1,5 @@
 import discord
-from discord import app_commands, Embed, Colour, ButtonStyle, Interaction, Member
+from discord import app_commands, Embed, Colour, ButtonStyle, Interaction, Member, Permissions
 from discord.ui import Button, View
 from discord.ext import commands
 
@@ -25,6 +25,21 @@ class CancelButton(View):
 class TrainingEvents(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.command(name="sync", description="Syncs slash commands for the specified guild.")
+    @commands.has_permissions(administrator=True)
+    async def sync(self, ctx: commands.Context):
+        # Check if the command is run in the correct guild
+        if str(ctx.guild.id) != "1292523481539543193":
+            await ctx.send("Error: This command can only be used in the specified guild.", delete_after=10)
+            return
+
+        try:
+            # Sync commands for the specific guild
+            synced = await self.bot.tree.sync(guild=discord.Object(id=1292523481539543193))
+            await ctx.send(f"Successfully synced {len(synced)} commands for the guild!", delete_after=10)
+        except Exception as e:
+            await ctx.send(f"Error: Failed to sync commands. {str(e)}", delete_after=10)
 
     @app_commands.command(name="training", description="Announces a training in the specified channel.")
     @app_commands.describe(
