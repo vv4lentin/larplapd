@@ -7,14 +7,12 @@ from keep_alive import keep_alive
 
 # Configure bot intents
 intents = discord.Intents.default()
-intents.message_content = True  # Required for command processing
+intents.message_content = True
 intents.guilds = True
-intents.members = True  # Optional, enable if needed for member-related features
+intents.members = True
 
 # Initialize bot with command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# Set bot owner IDsr IDs
 
 # Initialize global variables
 auto_role_enabled = False
@@ -26,32 +24,34 @@ bot.uptime = datetime.utcnow()
 @bot.command()
 async def say(ctx, *, message: str):
     try:
-        await ctx.message.delete()  # Delete the command message
+        await ctx.message.delete()
     except discord.Forbidden:
-        pass  # If the bot can't delete the message, just ignore the error
+        pass
     await ctx.send(message)
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} ({bot.user.id})")
     print(f"Connected to {len(bot.guilds)} guilds")
-    print(f"Bot owners: {bot.owner_ids}")
     print("Bot is ready!")
+    try:
+        guild = discord.Object(id=1292523481539543193)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"Synced {len(synced)} command(s) to guild {guild.id}")
+    except Exception as e:
+        print(f"Failed to sync commands to guild: {e}")
 
 async def load_extensions():
-    # Load Jishaku cog
     try:
         await bot.load_extension("cogs.jishaku")
         print("Loaded Jishaku cog")
     except Exception as e:
         print(f"Failed to load Jishaku cog: {e}")
-
     try:
         await bot.load_extension("cogs.lapdmanage")
         print("Loaded LAPD Manage cog")
     except Exception as e:
         print(f"Failed to load LAPD Manage cog: {e}")
-
     try:
         await bot.load_extension("cogs.trainingevents")
         print("Loaded Training and Events cog")
@@ -68,7 +68,6 @@ async def on_member_join(member: discord.Member):
         except discord.Forbidden:
             print(f"❌ Failed to assign {role_to_assign.name} to {member.name}. Bot lacks permissions.")
 
-# Prefix Commands
 @bot.command()
 async def test(ctx):
     print("Command executed once")
@@ -100,12 +99,9 @@ async def currentautorole(ctx):
         await ctx.send("🚫 Auto-role is **OFF**.")
 
 async def main():
-    # Load extensions and start bot
     await load_extensions()
-    
-    # Load bot token from environment variable
     keep_alive()
-    await bot.start("MTM3NTk3NzI4Mjg1MzY3MTExMw.G2kgr1.ePnxWc42wSjctEYIK5fiz5FxdC3oGkOHNoKEws")
+    await bot.start("MTM3NTk3NzI4Mjg1MzY3MTExMw.G2kgr1.ePnxWc42wSjctEYIK5fiz5FxdC3oGkOHNoKEws")  # Replace with your token or use os.getenv('BOT_TOKEN')
 
 if __name__ == "__main__":
     asyncio.run(main())
