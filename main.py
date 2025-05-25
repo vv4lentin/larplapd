@@ -12,7 +12,7 @@ intents.guilds = True
 intents.members = True  # Optional, enable if needed for member-related features
 
 # Initialize bot with command prefix and intents
-bot = commands.Bot(command_prefix=",", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Set bot owner IDs (replace with your Discord user ID)
 bot.owner_ids = {1038522974988411000, 1320762191661764689}  # Add your user ID here
