@@ -341,7 +341,6 @@ class Support(commands.Cog):
             await log_channel.send(embed=embed)
 
     @commands.command()
-    @commands.has_permissions(manage_guild=True)
     async def panel(self, ctx: commands.Context):
         try:
             embed = discord.Embed(
@@ -356,6 +355,7 @@ class Support(commands.Cog):
 **Board of Chiefs Ticket:** 👑
 -> Highly important issues that require BOC
 /!\ Do not open a BOC ticket for a minor issue /!\
+
 
 **Bot Development Ticket:** 🤖
 -> Report a bot bug or an issue with the bot
