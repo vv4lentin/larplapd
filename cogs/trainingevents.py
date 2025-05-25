@@ -247,62 +247,59 @@ class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
 # View for Event Announcements
 class EventsView(View):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=60)  # Set timeout to match command message
 
     @discord.ui.button(label="Announce Training", style=ButtonStyle.green)
     async def training_button(self, interaction: Interaction, button: Button):
-        await interaction.response.send_modal(TrainingModal())
+        try:
+            await interaction.response.send_modal(TrainingModal())
+        except Exception as e:
+            await interaction.response.send_message(f"Error launching Training modal: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Announce Orientation", style=ButtonStyle.green)
     async def orientation_button(self, interaction: Interaction, button: Button):
-        await interaction.response.send_modal(OrientationModal())
+        try:
+            await interaction.response.send_modal(OrientationModal())
+        except Exception as e:
+            await interaction.response.send_message(f"Error launching Orientation modal: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Announce Mass Shift", style=ButtonStyle.green)
     async def mass_shift_button(self, interaction: Interaction, button: Button):
-        await interaction.response.send_modal(MassShiftModal())
+        try:
+            await interaction.response.send_modal(MassShiftModal())
+        except Exception as e:
+            await interaction.response.send_message(f"Error launching Mass Shift modal: {str(e)}", ephemeral=True)
 
-# View for Logging Results
-class ResultsView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
+# View for Result Logging
+class ResultView(View):
+    def __init__(self, trainee: Member = None):
+        super().__init__(timeout=60)  # Set timeout to match command message
+        self.trainee = trainee
+        # Disable training/orientation buttons if no trainee is provided
+        if not trainee:
+            self.log_training_button.disabled = True
+            self.log_orientation_button.disabled = True
 
     @discord.ui.button(label="Log Training Result", style=ButtonStyle.blurple)
     async def log_training_button(self, interaction: Interaction, button: Button):
-        await interaction.response.send_message("Please mention the trainee.", ephemeral=True)
         try:
-            msg = await interaction.client.wait_for(
-                "message",
-                check=lambda m: m.author == interaction.user and m.channel == interaction.channel,
-                timeout=30
-            )
-            trainee = msg.mentions[0] if msg.mentions else None
-            if not trainee:
-                await interaction.followup.send("Error: A valid trainee must be mentioned.", ephemeral=True)
-                return
-            await interaction.followup.send_modal(LogTrainingModal(trainee))
-        except:
-            await interaction.followup.send("Error: Timed out waiting for trainee mention.", ephemeral=True)
+            await interaction.response.send_modal(LogTrainingModal(self.trainee))
+        except Exception as e:
+            await interaction.response.send_message(f"Error launching Training Result modal: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Log Orientation Result", style=ButtonStyle.blurple)
     async def log_orientation_button(self, interaction: Interaction, button: Button):
-        await interaction.response.send_message("Please mention the trainee.", ephemeral=True)
         try:
-            msg = await interaction.client.wait_for(
-                "message",
-                check=lambda m: m.author == interaction.user and m.channel == interaction.channel,
-                timeout=30
-            )
-            trainee = msg.mentions[0] if msg.mentions else None
-            if not trainee:
-                await interaction.followup.send("Error: A valid trainee must be mentioned.", ephemeral=True)
-                return
-            await interaction.followup.send_modal(LogOrientationModal(trainee))
-        except:
-            await interaction.followup.send("Error: Timed out waiting for trainee mention.", ephemeral=True)
+            await interaction.response.send_modal(LogOrientationModal(self.trainee))
+        except Exception as e:
+            await interaction.response.send_message(f"Error launching Orientation Result modal: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Log Mass Shift Result", style=ButtonStyle.blurple)
     async def log_mass_shift_button(self, interaction: Interaction, button: Button):
-        await interaction.response.send_modal(LogMassShiftModal())
+        try:
+            await interaction.response.send_modal(LogMassShiftModal())
+        except Exception as e:
+            await interaction.response.send_message(f"Error launching Mass Shift Result modal: {str(e)}", ephemeral=True)
 
 class TrainingEvents(commands.Cog):
     def __init__(self, bot):
@@ -313,10 +310,10 @@ class TrainingEvents(commands.Cog):
         view = EventsView()
         await ctx.send("Event Announcement Panel", view=view, delete_after=60)
 
-    @commands.command(name="results", description="Shows the result logging panel.")
-    async def results(self, ctx: commands.Context):
-        view = ResultsView()
-        await ctx.send("Result Logging Panel", view=view, delete_after=60)
+    @commands.command(name="result", description="Shows the result logging panel for a user or mass shift.")
+    async def result(self, ctx: commands.Context, user: Member = None):
+        view = ResultView(trainee=user)
+        await ctx.send("Result Logging Panel" + (f" for {user.mention}" if user else ""), view=view, delete_after=60)
 
     @commands.command(name="sync", description="Syncs slash commands for the specified guild.")
     @commands.has_permissions(administrator=True)
