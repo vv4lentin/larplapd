@@ -6,6 +6,7 @@ import asyncio
 from keep_alive import keep_alive
 
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
+ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
 
 # Configure bot intents
 intents = discord.Intents.default()
@@ -34,17 +35,19 @@ async def say(ctx, *, message: str):
 
 @bot.command(name="announce")
 async def announce(ctx, *, message: str):
-    # Delete the user's original message
+    # Check if the user has one of the allowed roles
+    if not any(role.id in ALLOWED_ROLE_IDS for role in ctx.author.roles):
+        await ctx.message.delete()
+        await ctx.author.send("This is a restricted command, only Bot Tamers and Board of Chiefs members can use it.")
+        return
+
     await ctx.message.delete()
 
     # Get the announcement channel
     channel = bot.get_channel(ANNOUNCEMENT_CHANNEL_ID)
-
     if channel is None:
-        await ctx.send("❌ Announcement channel not found.", delete_after=5)
-        return
+        return  # Optionally log if the channel doesn't exist
 
-    # Send the message to the announcement channel
     await channel.send(message)
     
 @bot.event
