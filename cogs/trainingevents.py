@@ -1,5 +1,5 @@
 import discord
-from discord import app_commands, Embed, Colour, ButtonStyle, Interaction, Member, Permissions
+from discord import Embed, Colour, ButtonStyle, Interaction, Member, Permissions
 from discord.ui import Button, View
 from discord.ext import commands
 
@@ -26,37 +26,12 @@ class TrainingEvents(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="sync", description="Syncs slash commands for the specified guild.")
-    async def sync(self, ctx: commands.Context):
-        # Check if the command is run in the correct guild
-        if str(ctx.guild.id) != "1292523481539543193":
-            await ctx.send("Error: This command can only be used in the specified guild.", delete_after=10)
-            return
-
-        try:
-            # Sync commands for the specific guild
-            synced = await self.bot.tree.sync(guild=discord.Object(id=1292523481539543193))
-            await ctx.send(f"Successfully synced {len(synced)} commands for the guild!", delete_after=10)
-        except Exception as e:
-            await ctx.send(f"Error: Failed to sync commands. {str(e)}", delete_after=10)
-
-    @app_commands.command(name="training", description="Announces a training in the specified channel.")
-    @app_commands.describe(
-        host="The host of the training.",
-        cohost="The co-host or helpers of the training (optional).",
-        when="When the training will take place.",
-        location="The location of the training.",
-        servercode="The server code for the training.",
-        notes="Additional notes for the training (optional)."
-    )
-    async def training(self, interaction: discord.Interaction, host: str, when: str, location: str, servercode: str, cohost: str = None, notes: str = None):
-        # Defer the response to avoid timeout
-        await interaction.response.defer(ephemeral=True)
-
+    @commands.command(name="training", description="Announces a training in the specified channel.")
+    async def training(self, ctx: commands.Context, host: str, when: str, location: str, servercode: str, cohost: str = None, notes: str = None):
         # Define the target channel
         channel = self.bot.get_channel(1329908997381296220)
         if not channel:
-            await interaction.followup.send("Error: Target channel not found.", ephemeral=True)
+            await ctx.send("Error: Target channel not found.", delete_after=10)
             return
 
         # Create the embed
@@ -71,7 +46,7 @@ class TrainingEvents(commands.Cog):
         embed.add_field(name="Location", value=location, inline=False)
         embed.add_field(name="Server code", value=servercode, inline=False)
         embed.add_field(name="Notes", value=notes if notes else "N/A", inline=False)
-        embed.set_footer(text=f"Sent by {interaction.user.display_name}")
+        embed.set_footer(text=f"Sent by {ctx.author.display_name}")
 
         # Create the view with the Cancel button
         view = CancelButton(host=host, original_message_id=None, event_type="Training")
@@ -80,10 +55,7 @@ class TrainingEvents(commands.Cog):
         await channel.send(content="<@&1306380788056723578> <@&1306380827143180340>")
 
         # Send the embed with the button
-        message = await channel.send(
-            embed=embed,
-            view=view
-        )
+        message = await channel.send(embed=embed, view=view)
 
         # Update the view with the message ID for replying
         view.original_message_id = message.id
@@ -93,25 +65,14 @@ class TrainingEvents(commands.Cog):
         await message.add_reaction("✅")
 
         # Confirm command execution
-        await interaction.followup.send("Training announcement sent successfully!", ephemeral=True)
+        await ctx.send("Training announcement sent successfully!", delete_after=10)
 
-    @app_commands.command(name="orientation", description="Announces an orientation in the specified channel.")
-    @app_commands.describe(
-        host="The host of the orientation.",
-        cohost="The co-host or helpers of the orientation (optional).",
-        when="When the orientation will take place.",
-        location="The location of the orientation.",
-        servercode="The server code for the orientation.",
-        notes="Additional notes for the orientation (optional)."
-    )
-    async def orientation(self, interaction: discord.Interaction, host: str, when: str, location: str, servercode: str, cohost: str = None, notes: str = None):
-        # Defer the response to avoid timeout
-        await interaction.response.defer(ephemeral=True)
-
+    @commands.command(name="orientation", description="Announces an orientation in the specified channel.")
+    async def orientation(self, ctx: commands.Context, host: str, when: str, location: str, servercode: str, cohost: str = None, notes: str = None):
         # Define the target channel
         channel = self.bot.get_channel(1329908997381296220)
         if not channel:
-            await interaction.followup.send("Error: Target channel not found.", ephemeral=True)
+            await ctx.send("Error: Target channel not found.", delete_after=10)
             return
 
         # Create the embed
@@ -126,7 +87,7 @@ class TrainingEvents(commands.Cog):
         embed.add_field(name="Location", value=location, inline=False)
         embed.add_field(name="Server code", value=servercode, inline=False)
         embed.add_field(name="Notes", value=notes if notes else "N/A", inline=False)
-        embed.set_footer(text=f"Sent by {interaction.user.display_name}")
+        embed.set_footer(text=f"Sent by {ctx.author.display_name}")
 
         # Create the view with the Cancel button
         view = CancelButton(host=host, original_message_id=None, event_type="Orientation")
@@ -135,10 +96,7 @@ class TrainingEvents(commands.Cog):
         await channel.send(content="<@&1306380788056723578> <@&1306380858437144576>")
 
         # Send the embed with the button
-        message = await channel.send(
-            embed=embed,
-            view=view
-        )
+        message = await channel.send(embed=embed, view=view)
 
         # Update the view with the message ID for replying
         view.original_message_id = message.id
@@ -148,41 +106,31 @@ class TrainingEvents(commands.Cog):
         await message.add_reaction("✅")
 
         # Confirm command execution
-        await interaction.followup.send("Orientation announcement sent successfully!", ephemeral=True)
+        await ctx.send("Orientation announcement sent successfully!", delete_after=10)
 
-    @app_commands.command(name="logorientation", description="Logs the result of an orientation in the specified channel.")
-    @app_commands.describe(
-        host="The host of the orientation.",
-        cohost="The co-host or helpers of the orientation (optional).",
-        trainee="The trainee who attended the orientation.",
-        result="The result of the orientation.",
-        comments="Additional comments about the orientation."
-    )
-    async def logorientation(self, interaction: discord.Interaction, host: str, cohost: str = None, trainee: Member = None, result: str = None, comments: str = None):
-        # Defer the response to avoid timeout
-        await interaction.response.defer(ephemeral=True)
-
+    @commands.command(name="logorientation", description="Logs the result of an orientation in the specified channel.")
+    async def logorientation(self, ctx: commands.Context, host: str, trainee: Member, result: str, comments: str, cohost: str = None):
         # Define the target channel
         channel = self.bot.get_channel(1328036335826763939)
         if not channel:
-            await interaction.followup.send("Error: Target channel not found.", ephemeral=True)
+            await ctx.send("Error: Target channel not found.", delete_after=10)
             return
 
         # Check if trainee is provided and valid
         if not trainee:
-            await interaction.followup.send("Error: A valid trainee must be provided.", ephemeral=True)
+            await ctx.send("Error: A valid trainee must be provided.", delete_after=10)
             return
 
         # Add the role to the trainee
-        role = interaction.guild.get_role(1306380827143180340)
+        role = ctx.guild.get_role(1306380827143180340)
         if not role:
-            await interaction.followup.send("Error: Target role not found.", ephemeral=True)
+            await ctx.send("Error: Target role not found.", delete_after=10)
             return
 
         try:
             await trainee.add_roles(role)
         except Exception as e:
-            await interaction.followup.send(f"Error: Failed to add role to trainee. {str(e)}", ephemeral=True)
+            await ctx.send(f"Error: Failed to add role to trainee. {str(e)}", delete_after=10)
             return
 
         # Create the embed
@@ -195,47 +143,37 @@ class TrainingEvents(commands.Cog):
         embed.add_field(name="Trainee", value=trainee.mention, inline=False)
         embed.add_field(name="Result", value=result if result else "N/A", inline=False)
         embed.add_field(name="Comments", value=comments if comments else "N/A", inline=False)
-        embed.set_footer(text=f"Issued by {interaction.user.display_name}")
+        embed.set_footer(text=f"Issued by {ctx.author.display_name}")
 
         # Send the trainee ping and embed
         await channel.send(content=trainee.mention, embed=embed)
 
         # Confirm command execution
-        await interaction.followup.send("Orientation result logged successfully!", ephemeral=True)
+        await ctx.send("Orientation result logged successfully!", delete_after=10)
 
-    @app_commands.command(name="logtraining", description="Logs the result of a training in the specified channel.")
-    @app_commands.describe(
-        host="The host of the training.",
-        cohost="The co-host or helpers of the training (optional).",
-        trainee="The trainee who attended the training.",
-        result="The result of the training.",
-        comments="Additional comments about the training."
-    )
-    async def logtraining(self, interaction: discord.Interaction, host: str, cohost: str = None, trainee: Member = None, result: str = None, comments: str = None):
-        # Defer the response to avoid timeout
-        await interaction.response.defer(ephemeral=True)
-
+    @commands.command(name="logtraining", description="Logs the result of a training in the specified channel.")
+    async def logtraining(self, ctx: commands.Context, host: str, trainee: Member, result: str, comments: str, cohost: str = None):
         # Define the target channel
         channel = self.bot.get_channel(1329939121086529566)
         if not channel:
-            await interaction.followup.send("Error: Target channel not found.", ephemeral=True)
+            await ctx.send("Error: Target channel not found.", delete_after=10)
             return
 
         # Check if trainee is provided and valid
         if not trainee:
-            await interaction.followup.send("Error: A valid trainee must be provided.", ephemeral=True)
+            await ctx.send("Error: A valid trainee must be provided.", delete_after=10)
             return
 
         # Add the role to the trainee
-        role = interaction.guild.get_role(1306380805752361020)
+        role = ctx.guild.get_role(1306380805752361020)
         if not role:
-            await interaction.followup.send("Error: Target role not found.", ephemeral=True)
+            await ctx.send("Error: Target role not found.", delete_after=10)
             return
 
         try:
             await trainee.add_roles(role)
         except Exception as e:
-            await interaction.followup.send(f"Error: Failed to add role to trainee. {str(e)}", ephemeral=True)
+            await ctx.send(f"Error: Failed to add role to trainee. {str(e)}", delete_after=10)
             return
 
         # Create the embed
@@ -249,26 +187,20 @@ class TrainingEvents(commands.Cog):
         embed.add_field(name="Trainee", value=trainee.mention, inline=False)
         embed.add_field(name="Result", value=result if result else "N/A", inline=False)
         embed.add_field(name="Comments", value=comments if comments else "N/A", inline=False)
-        embed.set_footer(text=f"Issued by {interaction.user.display_name}")
+        embed.set_footer(text=f"Issued by {ctx.author.display_name}")
 
         # Send the trainee ping and embed
         await channel.send(content=trainee.mention, embed=embed)
 
         # Confirm command execution
-        await interaction.followup.send("Training result logged successfully!", ephemeral=True)
+        await ctx.send("Training result logged successfully!", delete_after=10)
 
-    @app_commands.command(name="massshift", description="Announces a mass shift in the specified channel.")
-    @app_commands.describe(
-        host="The host of the mass shift."
-    )
-    async def massshift(self, interaction: discord.Interaction, host: str):
-        # Defer the response to avoid timeout
-        await interaction.response.defer(ephemeral=True)
-
+    @commands.command(name="massshift", description="Announces a mass shift in the specified channel.")
+    async def massshift(self, ctx: commands.Context, host: str):
         # Define the target channel
         channel = self.bot.get_channel(1292541172807635066)
         if not channel:
-            await interaction.followup.send("Error: Target channel not found.", ephemeral=True)
+            await ctx.send("Error: Target channel not found.", delete_after=10)
             return
 
         # Send the message
@@ -280,25 +212,14 @@ class TrainingEvents(commands.Cog):
         await message.add_reaction("✅")
 
         # Confirm command execution
-        await interaction.followup.send("Mass shift announcement sent successfully!", ephemeral=True)
+        await ctx.send("Mass shift announcement sent successfully!", delete_after=10)
 
-    @app_commands.command(name="logmassshift", description="Logs the result of a mass shift in the specified channel.")
-    @app_commands.describe(
-        host="The host of the mass shift.",
-        cohost="The co-host or helpers of the mass shift (optional).",
-        started="When the mass shift started.",
-        ended="When the mass shift ended.",
-        attendedusers="Users who attended the mass shift.",
-        promotedusers="Users who were promoted during the mass shift."
-    )
-    async def logmassshift(self, interaction: discord.Interaction, host: str, cohost: str = None, started: str = None, ended: str = None, attendedusers: str = None, promotedusers: str = None):
-        # Defer the response to avoid timeout
-        await interaction.response.defer(ephemeral=True)
-
+    @commands.command(name="logmassshift", description="Logs the result of a mass shift in the specified channel.")
+    async def logmassshift(self, ctx: commands.Context, host: str, started: str, ended: str, attendedusers: str, promotedusers: str, cohost: str = None):
         # Define the target channel
         channel = self.bot.get_channel(1328036189973909655)
         if not channel:
-            await interaction.followup.send("Error: Target channel not found.", ephemeral=True)
+            await ctx.send("Error: Target channel not found.", delete_after=10)
             return
 
         # Create the embed
@@ -312,13 +233,28 @@ class TrainingEvents(commands.Cog):
         embed.add_field(name="Ended at", value=ended if ended else "N/A", inline=False)
         embed.add_field(name="Attended users", value=attendedusers if attendedusers else "N/A", inline=False)
         embed.add_field(name="Promoted users", value=promotedusers if promotedusers else "N/A", inline=False)
-        embed.set_footer(text=f"Issued by {interaction.user.display_name}")
+        embed.set_footer(text=f"Issued by {ctx.author.display_name}")
 
         # Send the embed
         await channel.send(embed=embed)
 
         # Confirm command execution
-        await interaction.followup.send("Mass shift result logged successfully!", ephemeral=True)
+        await ctx.send("Mass shift result logged successfully!", delete_after=10)
+
+    @commands.command(name="sync", description="Syncs slash commands for the specified guild.")
+    @commands.has_permissions(administrator=True)
+    async def sync(self, ctx: commands.Context):
+        # Check if the command is run in the correct guild
+        if str(ctx.guild.id) != "1292523481539543193":
+            await ctx.send("Error: This command can only be used in the specified guild.", delete_after=10)
+            return
+
+        try:
+            # Sync commands for the specific guild
+            synced = await self.bot.tree.sync(guild=discord.Object(id=1292523481539543193))
+            await ctx.send(f"Successfully synced {len(synced)} commands for the guild!", delete_after=10)
+        except Exception as e:
+            await ctx.send(f"Error: Failed to sync commands. {str(e)}", delete_after=10)
 
 async def setup(bot):
     await bot.add_cog(TrainingEvents(bot))
