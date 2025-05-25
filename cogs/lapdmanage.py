@@ -43,11 +43,11 @@ ROLE_NICKNAME_MODIFIERS = {
 def get_active_roles(member, role_ids):
     return [r for r in member.roles if r.id in role_ids]
 
-class SHRPanel(commands.Cog):
+class LAPDManage(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="shrpanel")
+    @commands.command(name="manage")
     async def staff_manage(self, ctx, member: discord.Member):
         # Check bot permissions
         bot_perms = ctx.guild.me.guild_permissions
@@ -89,8 +89,8 @@ class SHRPanel(commands.Cog):
         active_strikes = get_active_roles(member, STRIKE_ROLE_IDS)
 
         embed = discord.Embed(
-            title=f"**{member.display_name}'s** Staff Panel",
-            description="Please select an action (Promotion, Warning, Strike, Demotion, Termination, Blacklist, Inactivity). Only SHRs are allowed to promote/blacklist, only SIA+ are allowed to terminate.",
+            title=f"**{member.display_name}'s** LAPD Panel",
+            description="Please select an action (Promotion, Warning, Strike, Demotion, Termination, Blacklist, Inactivity). Do not use this panel without permissions.",
             color=discord.Color.blue()
         )
         embed.add_field(name="Current Rank", value=current_rank, inline=True)
@@ -102,7 +102,7 @@ class SHRPanel(commands.Cog):
         view = StaffManageView(member, ctx.author)
         try:
             await ctx.send(embed=embed, view=view)
-            logger.info(f"Staff manage embed sent for {member}")
+            logger.info(f"LAPD manage embed sent for {member}")
         except Exception as e:
             logger.error(f"Failed to send embed: {e}")
             await ctx.send("⚠️ Failed to display management panel. Please check bot permissions.")
@@ -240,7 +240,7 @@ class PromotionModal(discord.ui.Modal, title="Promotion"):
             title="📈 Promotion Notice",
             color=discord.Color.green()
         )
-        embed.add_field(name="Staff Member", value=self.target.mention, inline=True)
+        embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="New Role", value=new_role.mention, inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
         embed.add_field(name="New Nickname", value=new_nickname, inline=True)
@@ -327,7 +327,7 @@ class DemotionModal(discord.ui.Modal, title="Demotion"):
             title="📉 Demotion Notice",
             color=discord.Color.red()
         )
-        embed.add_field(name="Staff Member", value=self.target.mention, inline=True)
+        embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="New Role", value=new_role.mention, inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
         embed.add_field(name="New Nickname", value=new_nickname, inline=True)
@@ -381,7 +381,7 @@ class WarningModal(discord.ui.Modal, title="Issue Warning"):
             title=f"⚠️ Warning • {role.name}",
             color=discord.Color.red()
         )
-        embed.add_field(name="Member", value=self.target.mention, inline=True)
+        embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="Active Warnings", value=str(len(active_warnings) + 1), inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
         embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
@@ -434,7 +434,7 @@ class StrikeModal(discord.ui.Modal, title="Issue Strike"):
             title=f"❌ Strike • {role.name}",
             color=discord.Color.red()
         )
-        embed.add_field(name="Member", value=self.target.mention, inline=True)
+        embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="Active Strikes", value=str(len(active_strikes) + 1), inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
         embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
@@ -487,7 +487,7 @@ class TerminationModal(discord.ui.Modal, title="Terminate Staff"):
 
         embed = discord.Embed(
             title="🚫 Termination Notice",
-            description=f"{self.target.mention} has been terminated from staff.",
+            description=f"{self.target.mention} has been terminated from the LAPD.",
             color=discord.Color.red()
         )
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
@@ -553,7 +553,7 @@ class BlacklistModal(discord.ui.Modal, title="Blacklist Staff"):
 
         embed = discord.Embed(
             title="⛔ Blacklist Notice",
-            description=f"{self.target.mention} has been blacklisted from staff, he can't re-apply or be part of the staff team anymore. He can't still appeal it and have a chance to cancel it.",
+            description=f"{self.target.mention} has been blacklisted from the LAPD, he can't re-apply or be part of the LAPD anymore. He can still appeal it and have a chance to cancel it.",
             color=discord.Color.dark_red()
         )
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
@@ -654,4 +654,4 @@ class AppealView(discord.ui.View):
             await interaction.response.send_message("❌ An error occurred while creating the appeal thread.", ephemeral=True)
 
 async def setup(bot):
-    await bot.add_cog(SHRPanel(bot))
+    await bot.add_cog(LAPDManage(bot))
