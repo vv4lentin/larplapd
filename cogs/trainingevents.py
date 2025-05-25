@@ -4,7 +4,7 @@ from discord.ui import Button, View, Modal, TextInput
 from discord.ext import commands
 
 class CancelButton(View):
-    def __init__(self, host: Member, original_message_id: int, event_type: str):
+    def __init__(self, host: str, original_message_id: int, event_type: str):
         super().__init__(timeout=None)
         self.host = host
         self.original_message_id = original_message_id
@@ -12,7 +12,7 @@ class CancelButton(View):
 
     @discord.ui.button(label="Cancel", style=ButtonStyle.red)
     async def cancel_button(self, interaction: Interaction, button: Button):
-        if interaction.user != self.host:
+        if interaction.user.display_name != self.host:
             await interaction.response.send_message(f"Only the host can cancel this {self.event_type.lower()}!", ephemeral=True)
             return
         
@@ -20,20 +20,23 @@ class CancelButton(View):
         button.disabled = True
         await interaction.message.edit(view=self)
 
+# Modal for Training Announcement
 class TrainingModal(Modal, title="Training Announcement"):
-    when = TextInput(label="When", placeholder="Enter date and time")
-    location = TextInput(label="Location", placeholder="Enter location")
-    servercode = TextInput(label="Server Code", placeholder="Enter server code")
-    cohost = TextInput(label="Co-Host/Helpers (Optional)", required=False, placeholder="Enter co-host(s)")
-    notes = TextInput(label="Notes (Optional)", required=False, placeholder="Enter additional notes")
-
-    def __init__(self, bot, channel_id):
+    def __init__(self):
         super().__init__()
-        self.bot = bot
-        self.channel_id = channel_id
+        self.when = TextInput(label="When", placeholder="e.g., 2025-05-25 18:00", required=True)
+        self.location = TextInput(label="Location", placeholder="e.g., Training Room A", required=True)
+        self.servercode = TextInput(label="Server Code", placeholder="e.g., ABC123", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JohnDoe", required=False)
+        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Bring your gear", required=False, style=discord.TextStyle.paragraph)
+        self.add_item(self.when)
+        self.add_item(self.location)
+        self.add_item(self.servercode)
+        self.add_item(self.cohost)
+        self.add_item(self.notes)
 
     async def on_submit(self, interaction: Interaction):
-        channel = self.bot.get_channel(self.channel_id)
+        channel = interaction.client.get_channel(1329908997381296220)
         if not channel:
             await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
             return
@@ -44,14 +47,14 @@ class TrainingModal(Modal, title="Training Announcement"):
             colour=Colour.blue()
         )
         embed.add_field(name="Host", value=interaction.user.display_name, inline=False)
-        embed.add_field(name="Co-Host / Helpers", value=self.cohost.value or "N/A", inline=False)
+        embed.add_field(name="Co-Host / Helpers", value=self.cohost.value if self.cohost.value else "N/A", inline=False)
         embed.add_field(name="When", value=self.when.value, inline=False)
         embed.add_field(name="Location", value=self.location.value, inline=False)
         embed.add_field(name="Server code", value=self.servercode.value, inline=False)
-        embed.add_field(name="Notes", value=self.notes.value or "N/A", inline=False)
+        embed.add_field(name="Notes", value=self.notes.value if self.notes.value else "N/A", inline=False)
         embed.set_footer(text=f"Sent by {interaction.user.display_name}")
 
-        view = CancelButton(host=interaction.user, original_message_id=None, event_type="Training")
+        view = CancelButton(host=interaction.user.display_name, original_message_id=None, event_type="Training")
         await channel.send(content="<@&1306380788056723578> <@&1306380827143180340>")
         message = await channel.send(embed=embed, view=view)
         view.original_message_id = message.id
@@ -59,20 +62,23 @@ class TrainingModal(Modal, title="Training Announcement"):
         await message.add_reaction("✅")
         await interaction.response.send_message("Training announcement sent successfully!", ephemeral=True)
 
+# Modal for Orientation Announcement
 class OrientationModal(Modal, title="Orientation Announcement"):
-    when = TextInput(label="When", placeholder="Enter date and time")
-    location = TextInput(label="Location", placeholder="Enter location")
-    servercode = TextInput(label="Server Code", placeholder="Enter server code")
-    cohost = TextInput(label="Co-Host/Helpers (Optional)", required=False, placeholder="Enter co-host(s)")
-    notes = TextInput(label="Notes (Optional)", required=False, placeholder="Enter additional notes")
-
-    def __init__(self, bot, channel_id):
+    def __init__(self):
         super().__init__()
-        self.bot = bot
-        self.channel_id = channel_id
+        self.when = TextInput(label="When", placeholder="e.g., 2025-05-25 18:00", required=True)
+        self.location = TextInput(label="Location", placeholder="e.g., Orientation Room B", required=True)
+        self.servercode = TextInput(label="Server Code", placeholder="e.g., XYZ789", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
+        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Prepare notes", required=False, style=discord.TextStyle.paragraph)
+        self.add_item(self.when)
+        self.add_item(self.location)
+        self.add_item(self.servercode)
+        self.add_item(self.cohost)
+        self.add_item(self.notes)
 
     async def on_submit(self, interaction: Interaction):
-        channel = self.bot.get_channel(self.channel_id)
+        channel = interaction.client.get_channel(1329908997381296220)
         if not channel:
             await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
             return
@@ -83,14 +89,14 @@ class OrientationModal(Modal, title="Orientation Announcement"):
             colour=Colour.blue()
         )
         embed.add_field(name="Host", value=interaction.user.display_name, inline=False)
-        embed.add_field(name="Co-Host / Helpers", value=self.cohost.value or "N/A", inline=False)
+        embed.add_field(name="Co-Host / Helpers", value=self.cohost.value if self.cohost.value else "N/A", inline=False)
         embed.add_field(name="When", value=self.when.value, inline=False)
         embed.add_field(name="Location", value=self.location.value, inline=False)
         embed.add_field(name="Server code", value=self.servercode.value, inline=False)
-        embed.add_field(name="Notes", value=self.notes.value or "N/A", inline=False)
+        embed.add_field(name="Notes", value=self.notes.value if self.notes.value else "N/A", inline=False)
         embed.set_footer(text=f"Sent by {interaction.user.display_name}")
 
-        view = CancelButton(host=interaction.user, original_message_id=None, event_type="Orientation")
+        view = CancelButton(host=interaction.user.display_name, original_message_id=None, event_type="Orientation")
         await channel.send(content="<@&1306380788056723578> <@&1306380858437144576>")
         message = await channel.send(embed=embed, view=view)
         view.original_message_id = message.id
@@ -98,31 +104,22 @@ class OrientationModal(Modal, title="Orientation Announcement"):
         await message.add_reaction("✅")
         await interaction.response.send_message("Orientation announcement sent successfully!", ephemeral=True)
 
+# Modal for Log Orientation Result
 class LogOrientationModal(Modal, title="Log Orientation Result"):
-    trainee = TextInput(label="Trainee (Mention)", placeholder="@username")
-    result = TextInput(label="Result", placeholder="Enter result")
-    comments = TextInput(label="Comments", placeholder="Enter comments")
-    cohost = TextInput(label="Co-Hosts (Optional)", required=False, placeholder="Enter co-host(s)")
-
-    def __init__(self, bot, channel_id):
+    def __init__(self, trainee: Member):
         super().__init__()
-        self.bot = bot
-        self.channel_id = channel_id
+        self.trainee = trainee
+        self.result = TextInput(label="Result", placeholder="e.g., Pass/Fail", required=True)
+        self.comments = TextInput(label="Comments", placeholder="e.g., Great performance", required=True, style=discord.TextStyle.paragraph)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
+        self.add_item(self.result)
+        self.add_item(self.comments)
+        self.add_item(self.cohost)
 
     async def on_submit(self, interaction: Interaction):
-        channel = self.bot.get_channel(self.channel_id)
+        channel = interaction.client.get_channel(1328036335826763939)
         if not channel:
             await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
-            return
-
-        try:
-            trainee_id = int(self.trainee.value.strip("<@!>").strip())
-            trainee = interaction.guild.get_member(trainee_id)
-            if not trainee:
-                await interaction.response.send_message("Error: Invalid trainee provided.", ephemeral=True)
-                return
-        except ValueError:
-            await interaction.response.send_message("Error: Please provide a valid trainee mention.", ephemeral=True)
             return
 
         role = interaction.guild.get_role(1306380827143180340)
@@ -131,7 +128,7 @@ class LogOrientationModal(Modal, title="Log Orientation Result"):
             return
 
         try:
-            await trainee.add_roles(role)
+            await self.trainee.add_roles(role)
         except Exception as e:
             await interaction.response.send_message(f"Error: Failed to add role to trainee. {str(e)}", ephemeral=True)
             return
@@ -141,40 +138,31 @@ class LogOrientationModal(Modal, title="Log Orientation Result"):
             colour=Colour.blue()
         )
         embed.add_field(name="Host", value=interaction.user.display_name, inline=False)
-        embed.add_field(name="Co-Hosts", value=self.cohost.value or "N/A", inline=False)
-        embed.add_field(name="Trainee", value=trainee.mention, inline=False)
-        embed.add_field(name="Result", value=self.result.value or "N/A", inline=False)
-        embed.add_field(name="Comments", value=self.comments.value or "N/A", inline=False)
+        embed.add_field(name="Co-Hosts", value=self.cohost.value if self.cohost.value else "N/A", inline=False)
+        embed.add_field(name="Trainee", value=self.trainee.mention, inline=False)
+        embed.add_field(name="Result", value=self.result.value, inline=False)
+        embed.add_field(name="Comments", value=self.comments.value, inline=False)
         embed.set_footer(text=f"Issued by {interaction.user.display_name}")
 
-        await channel.send(content=trainee.mention, embed=embed)
+        await channel.send(content=self.trainee.mention, embed=embed)
         await interaction.response.send_message("Orientation result logged successfully!", ephemeral=True)
 
+# Modal for Log Training Result
 class LogTrainingModal(Modal, title="Log Training Result"):
-    trainee = TextInput(label="Trainee (Mention)", placeholder="@username")
-    result = TextInput(label="Result", placeholder="Enter result")
-    comments = TextInput(label="Comments", placeholder="Enter comments")
-    cohost = TextInput(label="Co-Hosts (Optional)", required=False, placeholder="Enter co-host(s)")
-
-    def __init__(self, bot, channel_id):
+    def __init__(self, trainee: Member):
         super().__init__()
-        self.bot = bot
-        self.channel_id = channel_id
+        self.trainee = trainee
+        self.result = TextInput(label="Result", placeholder="e.g., Pass/Fail", required=True)
+        self.comments = TextInput(label="Comments", placeholder="e.g., Excellent skills", required=True, style=discord.TextStyle.paragraph)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JohnDoe", required=False)
+        self.add_item(self.result)
+        self.add_item(self.comments)
+        self.add_item(self.cohost)
 
     async def on_submit(self, interaction: Interaction):
-        channel = self.bot.get_channel(self.channel_id)
+        channel = interaction.client.get_channel(1329939121086529566)
         if not channel:
             await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
-            return
-
-        try:
-            trainee_id = int(self.trainee.value.strip("<@!>").strip())
-            trainee = interaction.guild.get_member(trainee_id)
-            if not trainee:
-                await interaction.response.send_message("Error: Invalid trainee provided.", ephemeral=True)
-                return
-        except ValueError:
-            await interaction.response.send_message("Error: Please provide a valid trainee mention.", ephemeral=True)
             return
 
         role = interaction.guild.get_role(1306380805752361020)
@@ -183,40 +171,60 @@ class LogTrainingModal(Modal, title="Log Training Result"):
             return
 
         try:
-            await trainee.add_roles(role)
+            await self.trainee.add_roles(role)
         except Exception as e:
             await interaction.response.send_message(f"Error: Failed to add role to trainee. {str(e)}", ephemeral=True)
             return
 
         embed = Embed(
             title="Training • Result",
-            description=f"{trainee.mention} Please take your final exam.",
+            description=f"{self.trainee.mention} Please take your final exam.",
             colour=Colour.blue()
         )
         embed.add_field(name="Host", value=interaction.user.display_name, inline=False)
-        embed.add_field(name="Co-Hosts", value=self.cohost.value or "N/A", inline=False)
-        embed.add_field(name="Trainee", value=trainee.mention, inline=False)
-        embed.add_field(name="Result", value=self.result.value or "N/A", inline=False)
-        embed.add_field(name="Comments", value=self.comments.value or "N/A", inline=False)
+        embed.add_field(name="Co-Hosts", value=self.cohost.value if self.cohost.value else "N/A", inline=False)
+        embed.add_field(name="Trainee", value=self.trainee.mention, inline=False)
+        embed.add_field(name="Result", value=self.result.value, inline=False)
+        embed.add_field(name="Comments", value=self.comments.value, inline=False)
         embed.set_footer(text=f"Issued by {interaction.user.display_name}")
 
-        await channel.send(content=trainee.mention, embed=embed)
+        await channel.send(content=self.trainee.mention, embed=embed)
         await interaction.response.send_message("Training result logged successfully!", ephemeral=True)
 
-class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
-    started = TextInput(label="Started At", placeholder="Enter start time")
-    ended = TextInput(label="Ended At", placeholder="Enter end time")
-    attendedusers = TextInput(label="Attended Users", placeholder="Enter attended users")
-    promotedusers = TextInput(label="Promoted Users", placeholder="Enter promoted users")
-    cohost = TextInput(label="Co-Hosts (Optional)", required=False, placeholder="Enter co-host(s)")
-
-    def __init__(self, bot, channel_id):
+# Modal for Mass Shift Announcement
+class MassShiftModal(Modal, title="Mass Shift Announcement"):
+    def __init__(self):
         super().__init__()
-        self.bot = bot
-        self.channel_id = channel_id
 
     async def on_submit(self, interaction: Interaction):
-        channel = self.bot.get_channel(self.channel_id)
+        channel = interaction.client.get_channel(1292541172807635066)
+        if not channel:
+            await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
+            return
+
+        message = await channel.send(
+            content=f"||<@&1292541838904791040>||\n{interaction.user.display_name} is hosting a **MASS SHIFT**.\n3+ votes required to start\nReact if attending ✅"
+        )
+        await message.add_reaction("✅")
+        await interaction.response.send_message("Mass shift announcement sent successfully!", ephemeral=True)
+
+# Modal for Log Mass Shift Result
+class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
+    def __init__(self):
+        super().__init__()
+        self.started = TextInput(label="Started at", placeholder="e.g., 2025-05-25 18:00", required=True)
+        self.ended = TextInput(label="Ended at", placeholder="e.g., 2025-05-25 19:00", required=True)
+        self.attendedusers = TextInput(label="Attended Users", placeholder="e.g., JohnDoe, JaneDoe", required=True)
+        self.promotedusers = TextInput(label="Promoted Users", placeholder="e.g., JohnDoe", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
+        self.add_item(self.started)
+        self.add_item(self.ended)
+        self.add_item(self.attendedusers)
+        self.add_item(self.promotedusers)
+        self.add_item(self.cohost)
+
+    async def on_submit(self, interaction: Interaction):
+        channel = interaction.client.get_channel(1328036189973909655)
         if not channel:
             await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
             return
@@ -226,59 +234,91 @@ class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
             colour=Colour.blue()
         )
         embed.add_field(name="Host", value=interaction.user.display_name, inline=False)
-        embed.add_field(name="Co-Hosts", value=self.cohost.value or "N/A", inline=False)
-        embed.add_field(name="Started at", value=self.started.value or "N/A", inline=False)
-        embed.add_field(name="Ended at", value=self.ended.value or "N/A", inline=False)
-        embed.add_field(name="Attended users", value=self.attendedusers.value or "N/A", inline=False)
-        embed.add_field(name="Promoted users", value=self.promotedusers.value or "N/A", inline=False)
+        embed.add_field(name="Co-Hosts", value=self.cohost.value if self.cohost.value else "N/A", inline=False)
+        embed.add_field(name="Started at", value=self.started.value, inline=False)
+        embed.add_field(name="Ended at", value=self.ended.value, inline=False)
+        embed.add_field(name="Attended users", value=self.attendedusers.value, inline=False)
+        embed.add_field(name="Promoted users", value=self.promotedusers.value, inline=False)
         embed.set_footer(text=f"Issued by {interaction.user.display_name}")
 
         await channel.send(embed=embed)
         await interaction.response.send_message("Mass shift result logged successfully!", ephemeral=True)
 
+# View for Event Announcements
+class EventsView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Announce Training", style=ButtonStyle.green)
+    async def training_button(self, interaction: Interaction, button: Button):
+        await interaction.response.send_modal(TrainingModal())
+
+    @discord.ui.button(label="Announce Orientation", style=ButtonStyle.green)
+    async def orientation_button(self, interaction: Interaction, button: Button):
+        await interaction.response.send_modal(OrientationModal())
+
+    @discord.ui.button(label="Announce Mass Shift", style=ButtonStyle.green)
+    async def mass_shift_button(self, interaction: Interaction, button: Button):
+        await interaction.response.send_modal(MassShiftModal())
+
+# View for Logging Results
+class ResultsView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Log Training Result", style=ButtonStyle.blurple)
+    async def log_training_button(self, interaction: Interaction, button: Button):
+        await interaction.response.send_message("Please mention the trainee.", ephemeral=True)
+        try:
+            msg = await interaction.client.wait_for(
+                "message",
+                check=lambda m: m.author == interaction.user and m.channel == interaction.channel,
+                timeout=30
+            )
+            trainee = msg.mentions[0] if msg.mentions else None
+            if not trainee:
+                await interaction.followup.send("Error: A valid trainee must be mentioned.", ephemeral=True)
+                return
+            await interaction.followup.send_modal(LogTrainingModal(trainee))
+        except:
+            await interaction.followup.send("Error: Timed out waiting for trainee mention.", ephemeral=True)
+
+    @discord.ui.button(label="Log Orientation Result", style=ButtonStyle.blurple)
+    async def log_orientation_button(self, interaction: Interaction, button: Button):
+        await interaction.response.send_message("Please mention the trainee.", ephemeral=True)
+        try:
+            msg = await interaction.client.wait_for(
+                "message",
+                check=lambda m: m.author == interaction.user and m.channel == interaction.channel,
+                timeout=30
+            )
+            trainee = msg.mentions[0] if msg.mentions else None
+            if not trainee:
+                await interaction.followup.send("Error: A valid trainee must be mentioned.", ephemeral=True)
+                return
+            await interaction.followup.send_modal(LogOrientationModal(trainee))
+        except:
+            await interaction.followup.send("Error: Timed out waiting for trainee mention.", ephemeral=True)
+
+    @discord.ui.button(label="Log Mass Shift Result", style=ButtonStyle.blurple)
+    async def log_mass_shift_button(self, interaction: Interaction, button: Button):
+        await interaction.response.send_modal(LogMassShiftModal())
+
 class TrainingEvents(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="training")
-    async def training(self, ctx: commands.Context):
-        modal = TrainingModal(self.bot, 1329908997381296220)
-        await ctx.send_modal(modal)
+    @commands.command(name="events", description="Shows the event announcement panel.")
+    async def events(self, ctx: commands.Context):
+        view = EventsView()
+        await ctx.send("Event Announcement Panel", view=view, delete_after=60)
 
-    @commands.command(name="orientation")
-    async def orientation(self, ctx: commands.Context):
-        modal = OrientationModal(self.bot, 1329908997381296220)
-        await ctx.send_modal(modal)
+    @commands.command(name="results", description="Shows the result logging panel.")
+    async def results(self, ctx: commands.Context):
+        view = ResultsView()
+        await ctx.send("Result Logging Panel", view=view, delete_after=60)
 
-    @commands.command(name="logorientation")
-    async def logorientation(self, ctx: commands.Context):
-        modal = LogOrientationModal(self.bot, 1328036335826763939)
-        await ctx.send_modal(modal)
-
-    @commands.command(name="logtraining")
-    async def logtraining(self, ctx: commands.Context):
-        modal = LogTrainingModal(self.bot, 1329939121086529566)
-        await ctx.send_modal(modal)
-
-    @commands.command(name="massshift")
-    async def massshift(self, ctx: commands.Context):
-        channel = self.bot.get_channel(1292541172807635066)
-        if not channel:
-            await ctx.send("Error: Target channel not found.", delete_after=10)
-            return
-
-        message = await channel.send(
-            content=f"||<@&1292541838904791040>||\n{ctx.author.display_name} is hosting a **MASS SHIFT**.\n3+ votes required to start\nReact if attending ✅"
-        )
-        await message.add_reaction("✅")
-        await ctx.send("Mass shift announcement sent successfully!", delete_after=10)
-
-    @commands.command(name="logmassshift")
-    async def logmassshift(self, ctx: commands.Context):
-        modal = LogMassShiftModal(self.bot, 1328036189973909655)
-        await ctx.send_modal(modal)
-
-    @commands.command(name="sync")
+    @commands.command(name="sync", description="Syncs slash commands for the specified guild.")
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx: commands.Context):
         if str(ctx.guild.id) != "1292523481539543193":
