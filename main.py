@@ -5,7 +5,7 @@ import os
 import asyncio
 from keep_alive import keep_alive
 
-ANNOUNCEMENT_CHANNEL_ID = 1292532379411284081
+ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 
 # Configure bot intents
 intents = discord.Intents.default()
