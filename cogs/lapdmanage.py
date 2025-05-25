@@ -31,17 +31,6 @@ ROLE_HIERARCHY = [
     
 ]
 
-ROLE_NICKNAME_MODIFIERS = {
-    1306380858437144576: "[RO] ", 1306380827143180340: "[CO I] ", 1306380805752361020: "[CO II] ",
-    1306380762542637150: "[PO I] ", 1306380742007328868: "[PO II] ", 1306380723191812278: "[PO III] ",
-    1306380700194177085: "[PO IV] ", 1306380648935591996: "[D I] ", 1306380625988554774: "[D II] ",
-    1306380606799876197: "[D III] ", 1306387881803120670: "[SGT I] ", 1306387817311633428: "[SGT II] ", 
-    1369413016340135936: "[SGT III] ", 1306380421717688380: "[LT I] ", 1306380397839515708: "[LT II] ", 
-    1306380287181324349: "[CPT I] ", 1306380258185969716: "[CPT II] ", 1323743686420594771: "[CPT III] ",
-    1345207148644401233: "[WCMD] ", 1345207148149211229: "[ACMD] ", 1306380183711780944: "[CMD] ", 
-    1306380143752773662: "[ACOP] ", 1306380120629444628: "[DCOP] ", 1306380038039408684: "[COP] "
-}
-
 def get_active_roles(member, role_ids):
     return [r for r in member.roles if r.id in role_ids]
 
@@ -217,27 +206,6 @@ class PromotionModal(discord.ui.Modal, title="Promotion"):
                 logger.error(f"Failed to update roles for {self.target}: Missing permissions")
                 return await interaction.response.send_message("❌ Bot lacks permission to manage roles.", ephemeral=True)
 
-        current_nickname = self.target.display_name
-        base_nickname = current_nickname
-        if current_role:
-            current_modifier = ROLE_NICKNAME_MODIFIERS.get(current_role.id, "")
-            if current_nickname.startswith(current_modifier):
-                base_nickname = current_nickname[len(current_modifier):]
-        if not base_nickname:
-            base_nickname = self.target.name
-
-        new_modifier = ROLE_NICKNAME_MODIFIERS.get(new_role.id, "")
-        new_nickname = f"{new_modifier}{base_nickname}"[:32]
-        if not new_nickname:
-            new_nickname = self.target.name[:32]
-
-        try:
-            await self.target.edit(nick=new_nickname)
-            logger.info(f"Updated nickname for {self.target} to {new_nickname}")
-        except discord.Forbidden:
-            logger.warning(f"Failed to update nickname for {self.target}: Missing permissions")
-            await interaction.response.send_message("⚠️ Promotion successful, but I lack permission to change the nickname.", ephemeral=True)
-
         embed = discord.Embed(
             title="📈 Promotion Notice",
             color=discord.Color.green()
@@ -245,7 +213,6 @@ class PromotionModal(discord.ui.Modal, title="Promotion"):
         embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="New Role", value=new_role.mention, inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.add_field(name="New Nickname", value=new_nickname, inline=True)
         embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
@@ -304,27 +271,6 @@ class DemotionModal(discord.ui.Modal, title="Demotion"):
             logger.error(f"Failed to update roles for {self.target}: Missing permissions")
             return await interaction.response.send_message("❌ Bot lacks permission to manage roles.", ephemeral=True)
 
-        current_nickname = self.target.display_name
-        base_nickname = current_nickname
-        if current_role:
-            current_modifier = ROLE_NICKNAME_MODIFIERS.get(current_role.id, "")
-            if current_nickname.startswith(current_modifier):
-                base_nickname = current_nickname[len(current_modifier):]
-        if not base_nickname:
-            base_nickname = self.target.name
-
-        new_modifier = ROLE_NICKNAME_MODIFIERS.get(new_role.id, "")
-        new_nickname = f"{new_modifier}{base_nickname}"[:32]
-        if not new_nickname:
-            new_nickname = self.target.name[:32]
-
-        try:
-            await self.target.edit(nick=new_nickname)
-            logger.info(f"Updated nickname for {self.target} to {new_nickname}")
-        except discord.Forbidden:
-            logger.warning(f"Failed to update nickname for {self.target}: Missing permissions")
-            await interaction.response.send_message("⚠️ Demotion successful, but I lack permission to change the nickname.", ephemeral=True)
-
         embed = discord.Embed(
             title="📉 Demotion Notice",
             color=discord.Color.red()
@@ -332,7 +278,6 @@ class DemotionModal(discord.ui.Modal, title="Demotion"):
         embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="New Role", value=new_role.mention, inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.add_field(name="New Nickname", value=new_nickname, inline=True)
         embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
@@ -470,22 +415,6 @@ class TerminationModal(discord.ui.Modal, title="Terminate Staff"):
         if not channel:
             logger.error(f"Infractions channel {INFRACTIONS_CHANNEL_ID} not found")
             return await interaction.response.send_message("❌ Infractions channel not found.", ephemeral=True)
-
-        current_nickname = self.target.display_name
-        base_nickname = current_nickname
-        for modifier in ROLE_NICKNAME_MODIFIERS.values():
-            if current_nickname.startswith(modifier):
-                base_nickname = current_nickname[len(modifier):]
-                break
-        if not base_nickname:
-            base_nickname = self.target.name
-
-        try:
-            await self.target.edit(nick=base_nickname[:32])
-            logger.info(f"Updated nickname for {self.target} to {base_nickname[:32]}")
-        except discord.Forbidden:
-            logger.warning(f"Failed to update nickname for {self.target}: Missing permissions")
-            await interaction.response.send_message("⚠️ Termination processed, but I lack permission to change the nickname.", ephemeral=True)
 
         embed = discord.Embed(
             title="🚫 Termination Notice",
