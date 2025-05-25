@@ -15,7 +15,11 @@ intents.members = True  # Optional, enable if needed for member-related features
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Set bot owner IDs
-bot.owner_ids = {1038522974988411000, 1320762191661764689, 1009636030665740418}  # Updated owner IDs
+bot.owner_ids = {1038522974988411000, 1320762191661764689, 1009636030665740418, 700054192911548456}  # Updated owner IDs
+
+# Initialize global variables
+auto_role_enabled = False
+role_to_assign = None
 
 # Track bot uptime
 bot.uptime = datetime.utcnow()
@@ -26,13 +30,19 @@ async def say(ctx, *, message: str):
         await ctx.message.delete()  # Delete the command message
     except discord.Forbidden:
         pass  # If the bot can't delete the message, just ignore the error
-
     await ctx.send(message)
-    
+
+@bot.command()
+@commands.is_owner()
+async def ownercheck(ctx):
+    """Test command to verify if the user is a bot owner."""
+    await ctx.send(f"{ctx.author.mention}, you are a bot owner!")
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} ({bot.user.id})")
     print(f"Connected to {len(bot.guilds)} guilds")
+    print(f"Bot owners: {bot.owner_ids}")
     print("Bot is ready!")
 
 async def load_extensions():
@@ -68,14 +78,13 @@ async def test(ctx):
 @bot.command()
 async def autorole(ctx, status: str, role: discord.Role = None):
     global auto_role_enabled, role_to_assign
-
     if status.lower() == "on":
         if role:
             role_to_assign = role
             auto_role_enabled = True
             await ctx.send(f"✅ Auto-role is now **ON**. The role {role.mention} will be assigned to all new members.")
         else:
-            await ctx.send("❌ You must **mention** a role (e.g., `,autorole on @Role`).")
+            await ctx.send("❌ You must **mention** a role (e.g., `!autorole on @Role`).")
     elif status.lower() == "off":
         auto_role_enabled = False
         role_to_assign = None
@@ -95,7 +104,7 @@ async def main():
     # Load extensions and start bot
     await load_extensions()
     
-    # Replace 'YOUR_BOT_TOKEN' with your actual bot token
+    # Load bot token from environment variable
     keep_alive()
     await bot.start("MTM3NTk3NzI4Mjg1MzY3MTExMw.G2kgr1.ePnxWc42wSjctEYIK5fiz5FxdC3oGkOHNoKEws")
 
