@@ -44,42 +44,12 @@ async def load_extensions():
         print(f"Failed to load Jishaku cog: {e}")
 
     try:
-        await bot.load_extension("cogs.newspanel")
-        print("Loaded News Panel cog")
+        await bot.load_extension("cogs.lapdmanage")
+        print("Loaded LAPD Manage cog")
     except Exception as e:
-        print(f"Failed to load News Panel cog: {e}")
+        print(f"Failed to load LAPD Manage cog: {e}")
 
-    try:
-        await bot.load_extension("cogs.moderation")
-        print("Loaded Moderation cog")
-    except Exception as e:
-        print(f"Failed to load Moderation cog: {e}")
 
-    try:
-        await bot.load_extension("cogs.prodpanel")
-        print("Loaded Production Panel cog")
-    except Exception as e:
-        print(f"Failed to load Production Panel cog: {e}")
-
-    try:
-        await bot.load_extension("cogs.shrpanel")
-        print("Loaded SHR Panel cog")
-    except Exception as e:
-        print(f"Failed to load SHR Panel cog: {e}")
-
-    try:
-        await bot.load_extension("cogs.support")
-        print("Loaded Support cog")
-    except Exception as e:
-        print(f"Failed to load Support cog: {e}")
-
-    try:
-        await bot.load_extension("cogs.cmd")
-        print("Loaded Trainings cog")
-    except Exception as e:
-        print(f"Failed to load CMD cog: {e}")
-
-        
 @bot.event
 async def on_member_join(member: discord.Member):
     global auto_role_enabled, role_to_assign
