@@ -350,7 +350,7 @@ class Support(commands.Cog):
     async def panel(self, ctx):
         try:
             embed = discord.Embed(
-                title="Hockey's Corporation Support",
+                title="Los Angeles Police Department Support",
                 description="""
 **General Support:** ❓
 -> General questions and issues
@@ -361,6 +361,7 @@ class Support(commands.Cog):
 **Board of Chiefs Support:** 👑
 -> Highly important issues that requires BOC
 /!\ Do not open a BOC ticket for a minor issue /!\
+
 
 **Bot Developpement Support:** 🤖
 -> Report a bot bug or an issue with the bot.
