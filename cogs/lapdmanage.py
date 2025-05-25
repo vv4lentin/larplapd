@@ -25,10 +25,9 @@ ROLE_HIERARCHY = [
     1306380858437144576, 1306380827143180340, 1306380805752361020, 1306380762542637150,
     1306380742007328868, 1306380723191812278, 1306380700194177085, 1306380648935591996,
     1306380625988554774, 1306380606799876197, 1306387881803120670, 1306387817311633428,
-    1369413016340135936, 1306380421717688380, 1306380397839515708, 1306380287181324349, 
-    1306380258185969716, 1323743686420594771, 1345207148644401233, 1345207148149211229, 
+    1369413016340135936, 1306380421717688380, 1306380397839515708, 1306380287181324349,
+    1306380258185969716, 1323743686420594771, 1345207148644401233, 1345207148149211229,
     1306380183711780944, 1306380143752773662, 1306380120629444628, 1306380038039408684
-    
 ]
 
 def get_active_roles(member, role_ids):
@@ -42,7 +41,7 @@ class LAPDManage(commands.Cog):
     async def staff_manage(self, ctx, member: discord.Member):
         # Check bot permissions
         bot_perms = ctx.guild.me.guild_permissions
-        required_perms = ["manage_roles", "manage_nicknames", "send_messages", "embed_links"]
+        required_perms = ["manage_roles", "send_messages", "embed_links"]
         missing_perms = [perm for perm in required_perms if not getattr(bot_perms, perm)]
         if missing_perms:
             logger.error(f"Bot lacks permissions: {', '.join(missing_perms)}")
@@ -168,6 +167,7 @@ class PromotionModal(discord.ui.Modal, title="Promotion"):
             logger.error(f"Promotion channel {PROMOTION_CHANNEL_ID} not found")
             return await interaction.response.send_message("❌ Promotion channel not found.", ephemeral=True)
 
+        bot_top_role = max([role for role in guild.me.roles], key=lambda r: r.position)
         current_role = None
         current_index = -1
         for i, role_id in enumerate(ROLE_HIERARCHY):
@@ -182,14 +182,15 @@ class PromotionModal(discord.ui.Modal, title="Promotion"):
             if not new_role:
                 logger.error(f"Lowest role {ROLE_HIERARCHY[0]} not found")
                 return await interaction.response.send_message(f"❌ Lowest role not found.", ephemeral=True)
+            if bot_top_role.position < new_role.position:
+                logger.error(f"Bot's role is too low to assign {new_role.name}")
+                return await interaction.response.send_message("❌ Bot's role is too low to assign this role.", ephemeral=True)
             try:
                 await self.target.add_roles(new_role)
                 logger.info(f"Added role {new_role.name} to {self.target}")
             except discord.Forbidden:
                 logger.error(f"Failed to add role {new_role.name} to {self.target}: Missing permissions")
                 return await interaction.response.send_message("❌ Bot lacks permission to add roles.", ephemeral=True)
-            current_role = None
-            current_index = 0
         else:
             if current_index >= len(ROLE_HIERARCHY) - 1:
                 logger.info(f"{self.target} is already at the highest role")
@@ -198,6 +199,9 @@ class PromotionModal(discord.ui.Modal, title="Promotion"):
             if not new_role:
                 logger.error(f"Next role {ROLE_HIERARCHY[current_index + 1]} not found")
                 return await interaction.response.send_message(f"❌ Next role not found.", ephemeral=True)
+            if bot_top_role.position < new_role.position:
+                logger.error(f"Bot's role is too low to assign {new_role.name}")
+                return await interaction.response.send_message("❌ Bot's role is too low to assign this role.", ephemeral=True)
             try:
                 await self.target.add_roles(new_role)
                 await self.target.remove_roles(current_role)
@@ -213,7 +217,7 @@ class PromotionModal(discord.ui.Modal, title="Promotion"):
         embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="New Role", value=new_role.mention, inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
             await channel.send(self.target.mention)
@@ -245,6 +249,7 @@ class DemotionModal(discord.ui.Modal, title="Demotion"):
             logger.error(f"Infractions channel {INFRACTIONS_CHANNEL_ID} not found")
             return await interaction.response.send_message("❌ Infractions channel not found.", ephemeral=True)
 
+        bot_top_role = max([role for role in guild.me.roles], key=lambda r: r.position)
         current_role = None
         current_index = -1
         for i, role_id in enumerate(ROLE_HIERARCHY):
@@ -263,6 +268,10 @@ class DemotionModal(discord.ui.Modal, title="Demotion"):
             logger.error(f"Previous role {ROLE_HIERARCHY[current_index - 1]} not found")
             return await interaction.response.send_message(f"❌ Previous role not found.", ephemeral=True)
 
+        if bot_top_role.position < new_role.position or (current_role and bot_top_role.position < current_role.position):
+            logger.error(f"Bot's role is too low to manage {new_role.name} or {current_role.name}")
+            return await interaction.response.send_message("❌ Bot's role is too low to manage these roles.", ephemeral=True)
+
         try:
             await self.target.add_roles(new_role)
             await self.target.remove_roles(current_role)
@@ -278,7 +287,7 @@ class DemotionModal(discord.ui.Modal, title="Demotion"):
         embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="New Role", value=new_role.mention, inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
             await channel.send(self.target.mention)
@@ -310,12 +319,17 @@ class WarningModal(discord.ui.Modal, title="Issue Warning"):
             logger.error(f"Infractions channel {INFRACTIONS_CHANNEL_ID} not found")
             return await interaction.response.send_message("❌ Infractions channel not found.", ephemeral=True)
 
+        bot_top_role = max([role for role in guild.me.roles], key=lambda r: r.position)
         active_warnings = get_active_roles(self.target, WARNING_ROLE_IDS)
         next_warning_role = WARNING_ROLE_IDS[len(active_warnings)] if len(active_warnings) < len(WARNING_ROLE_IDS) else WARNING_ROLE_IDS[-1]
         role = get(guild.roles, id=next_warning_role)
         if not role:
             logger.error(f"Warning role {next_warning_role} not found")
             return await interaction.response.send_message(f"❌ Warning role not found.", ephemeral=True)
+
+        if bot_top_role.position < role.position:
+            logger.error(f"Bot's role is too low to assign {role.name}")
+            return await interaction.response.send_message("❌ Bot's role is too low to assign this role.", ephemeral=True)
 
         try:
             await self.target.add_roles(role)
@@ -331,7 +345,7 @@ class WarningModal(discord.ui.Modal, title="Issue Warning"):
         embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="Active Warnings", value=str(len(active_warnings) + 1), inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
             await channel.send(self.target.mention)
@@ -363,12 +377,17 @@ class StrikeModal(discord.ui.Modal, title="Issue Strike"):
             logger.error(f"Infractions channel {INFRACTIONS_CHANNEL_ID} not found")
             return await interaction.response.send_message("❌ Infractions channel not found.", ephemeral=True)
 
+        bot_top_role = max([role for role in guild.me.roles], key=lambda r: r.position)
         active_strikes = get_active_roles(self.target, STRIKE_ROLE_IDS)
         next_strike_role = STRIKE_ROLE_IDS[len(active_strikes)] if len(active_strikes) < len(STRIKE_ROLE_IDS) else STRIKE_ROLE_IDS[-1]
         role = get(guild.roles, id=next_strike_role)
         if not role:
             logger.error(f"Strike role {next_strike_role} not found")
             return await interaction.response.send_message(f"❌ Strike role not found.", ephemeral=True)
+
+        if bot_top_role.position < role.position:
+            logger.error(f"Bot's role is too low to assign {role.name}")
+            return await interaction.response.send_message("❌ Bot's role is too low to assign this role.", ephemeral=True)
 
         try:
             await self.target.add_roles(role)
@@ -384,7 +403,7 @@ class StrikeModal(discord.ui.Modal, title="Issue Strike"):
         embed.add_field(name="Officer", value=self.target.mention, inline=True)
         embed.add_field(name="Active Strikes", value=str(len(active_strikes) + 1), inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
             await channel.send(self.target.mention)
@@ -422,7 +441,7 @@ class TerminationModal(discord.ui.Modal, title="Terminate Staff"):
             color=discord.Color.red()
         )
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
             await channel.send(self.target.mention)
@@ -454,10 +473,15 @@ class BlacklistModal(discord.ui.Modal, title="Blacklist Staff"):
             logger.error(f"Infractions channel {INFRACTIONS_CHANNEL_ID} not found")
             return await interaction.response.send_message("❌ Infractions channel not found.", ephemeral=True)
 
+        bot_top_role = max([role for role in guild.me.roles], key=lambda r: r.position)
         blacklist_role = get(guild.roles, id=BLACKLIST_ROLE_ID)
         if not blacklist_role:
             logger.error(f"Blacklist role {BLACKLIST_ROLE_ID} not found")
             return await interaction.response.send_message(f"❌ Blacklist role not found.", ephemeral=True)
+
+        if bot_top_role.position < blacklist_role.position:
+            logger.error(f"Bot's role is too low to assign {blacklist_role.name}")
+            return await interaction.response.send_message("❌ Bot's role is too low to assign this role.", ephemeral=True)
 
         try:
             await self.target.add_roles(blacklist_role)
@@ -466,30 +490,14 @@ class BlacklistModal(discord.ui.Modal, title="Blacklist Staff"):
             logger.error(f"Failed to add blacklist role to {self.target}: Missing permissions")
             return await interaction.response.send_message("⚠️ Blacklist processed, but I lack permission to add the blacklist role.", ephemeral=True)
 
-        current_nickname = self.target.display_name
-        base_nickname = current_nickname
-        for modifier in ROLE_NICKNAME_MODIFIERS.values():
-            if current_nickname.startswith(modifier):
-                base_nickname = current_nickname[len(modifier):]
-                break
-        if not base_nickname:
-            base_nickname = self.target.name
-
-        try:
-            await self.target.edit(nick=base_nickname[:32])
-            logger.info(f"Updated nickname for {self.target} to {base_nickname[:32]}")
-        except discord.Forbidden:
-            logger.warning(f"Failed to update nickname for {self.target}: Missing permissions")
-            await interaction.response.send_message("⚠️ Blacklist processed, but I lack permission to change the nickname.", ephemeral=True)
-
         embed = discord.Embed(
             title="⛔ Blacklist Notice",
-            description=f"{self.target.mention} has been blacklisted from the LAPD, he can't re-apply or be part of the LAPD anymore. He can still appeal it and have a chance to cancel it.",
+            description=f"{self.target.mention} has been blacklisted from the LAPD. They cannot re-apply or be part of the LAPD anymore. They can still appeal it for a chance to reverse it.",
             color=discord.Color.dark_red()
         )
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
         embed.add_field(name="Blacklist Role", value=blacklist_role.mention, inline=True)
-        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
             await channel.send(self.target.mention)
@@ -521,12 +529,17 @@ class InactivityModal(discord.ui.Modal, title="Issue Inactivity Notice"):
             logger.error(f"Infractions channel {INFRACTIONS_CHANNEL_ID} not found")
             return await interaction.response.send_message("❌ Infractions channel not found.", ephemeral=True)
 
+        bot_top_role = max([role for role in guild.me.roles], key=lambda r: r.position)
         active_inactivity = get_active_roles(self.target, INACTIVITY_ROLE_IDS)
         next_inactivity_role = INACTIVITY_ROLE_IDS[len(active_inactivity)] if len(active_inactivity) < len(INACTIVITY_ROLE_IDS) else INACTIVITY_ROLE_IDS[-1]
         role = get(guild.roles, id=next_inactivity_role)
         if not role:
             logger.error(f"Inactivity role {next_inactivity_role} not found")
             return await interaction.response.send_message(f"❌ Inactivity role not found.", ephemeral=True)
+
+        if bot_top_role.position < role.position:
+            logger.error(f"Bot's role is too low to assign {role.name}")
+            return await interaction.response.send_message("❌ Bot's role is too low to assign this role.", ephemeral=True)
 
         try:
             await self.target.add_roles(role)
@@ -543,7 +556,7 @@ class InactivityModal(discord.ui.Modal, title="Issue Inactivity Notice"):
         embed.add_field(name="Member", value=self.target.mention, inline=True)
         embed.add_field(name="Active Inactivity Notices", value=str(len(active_inactivity) + 1), inline=True)
         embed.add_field(name="Reason", value=f"> {self.reason.value}", inline=False)
-        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        embed.set_footer(text=f"Issued by {self.moderator.display_name} • {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         try:
             await channel.send(self.target.mention)
@@ -568,13 +581,17 @@ class AppealView(discord.ui.View):
 
     @discord.ui.button(label="Appeal", style=discord.ButtonStyle.secondary)
     async def appeal(self, interaction: discord.Interaction, button):
+        if not interaction.channel.permissions_for(interaction.guild.me).create_private_threads:
+            logger.error(f"Bot lacks permission to create private threads in {interaction.channel.name}")
+            return await interaction.response.send_message("❌ Bot lacks permission to create private threads.", ephemeral=True)
+        
         try:
             thread = await interaction.channel.create_thread(
                 name=f"Infractions Appeal: {self.infraction_type} of {self.target.display_name}",
                 type=discord.ChannelType.private_thread
             )
             await thread.add_user(self.target)
-            await thread.send(f"{self.target.mention}, you may appeal your {self.infraction_type.lower()} here. <@&{APPEAL_REVIEW_ROLE_ID}> Please review the infraction, if this is a blacklist, please ping a SHR.")
+            await thread.send(f"{self.target.mention}, you may appeal your {self.infraction_type.lower()} here. <@&{APPEAL_REVIEW_ROLE_ID}> Please review the infraction; if this is a blacklist, please ping a SHR.")
             logger.info(f"Appeal thread created for {self.target}: {self.infraction_type}")
             await interaction.response.send_message("✅ Appeal thread created.", ephemeral=True)
         except discord.Forbidden:
