@@ -59,7 +59,7 @@ class TicketActionView(ui.View):
             return
         
         if self.cog.ticket_data[interaction.channel.id]["claimed_by"]:
-            await interaction.response.send_message("This ticket is already claimed.", ephemeral=True)
+            await interaction.response.send_message("This is already claimed.", ephemeral=True)
             return
 
         self.cog.ticket_data[interaction.channel.id]["claimed_by"] = interaction.user
@@ -87,7 +87,7 @@ class CloseActionView(ui.View):
     @ui.button(label="Delete", style=discord.ButtonStyle.danger, emoji="🗑️")
     async def delete(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.send_message("Deleting ticket...", ephemeral=True)
-        await self.cog.log_action("delete", {}, interaction.user, interaction.channel, "Ticket deleted")
+        await self.cog.log_action("delete", interaction.user, interaction.channel, "Ticket deleted")
         await interaction.channel.delete()
 
     @ui.button(label="Reopen", style=discord.ButtonStyle.success, emoji="🔄")
@@ -96,7 +96,7 @@ class CloseActionView(ui.View):
         self.cog.ticket_data[interaction.channel.id]["status"] = "open"
         await interaction.channel.edit(topic=f"Open | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
         await interaction.response.send_message("Ticket reopened.")
-        await interaction.channel.send(f"{self.owner.mention Your} {TICKET_TYPE_MAPPING[self.ticket_type]['display']} ticket has been reopened.")
+        await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} ticket has been reopened.")
         await self.cog.log_action("reopen", interaction.user, interaction.channel, "Ticket reopened")
         await interaction.message.delete()
 
@@ -150,7 +150,7 @@ class SupportDropdownView(ui.View):
     def __init__(self, cog):
         super().__init__(timeout=None)
         self.cog = cog
-        self.add_item(SupportDropdown(cog))  # Pass cog to SupportDropdown
+        self.add_item(SupportDropdown(cog))
 
 class CloseRequestView(ui.View):
     def __init__(self, cog):
@@ -159,7 +159,7 @@ class CloseRequestView(ui.View):
 
     @ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🔒")
     async def close(self, interaction: discord.Interaction, button: ui.Button):
-        await self.cog.close(interaction)
+        await self.cog.close_ticket(interaction)
 
     @ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel(self, interaction: discord.Interaction, button: ui.Button):
@@ -396,7 +396,22 @@ class Support(commands.Cog):
         if ctx.channel.id not in self.ticket_data:
             await ctx.send("This is not a ticket channel.")
             return
-        interaction = await ctx.send("Closing ticket...")
+        class FakeInteraction:
+            def __init__(self, ctx):
+                self.channel = ctx.channel
+                self.guild = ctx.guild
+                self.user = ctx.author
+                self.response = self.Response(ctx)
+                self.followup = self.Response(ctx)
+
+            class Response:
+                def __init__(self, ctx):
+                    self.ctx = ctx
+
+                async def send_message(self, content, **kwargs):
+                    await self.ctx.send(content, **kwargs)
+
+        interaction = FakeInteraction(ctx)
         await self.close_ticket(interaction)
 
     @commands.command()
