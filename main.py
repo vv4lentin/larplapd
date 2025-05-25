@@ -5,6 +5,8 @@ import os
 import asyncio
 from keep_alive import keep_alive
 
+ANNOUNCEMENT_CHANNEL_ID = 1292532379411284081
+
 # Configure bot intents
 intents = discord.Intents.default()
 intents.message_content = True
@@ -29,6 +31,22 @@ async def say(ctx, *, message: str):
         pass
     await ctx.send(message)
 
+
+@bot.command(name="announce")
+async def announce(ctx, *, message: str):
+    # Delete the user's original message
+    await ctx.message.delete()
+
+    # Get the announcement channel
+    channel = bot.get_channel(ANNOUNCEMENT_CHANNEL_ID)
+
+    if channel is None:
+        await ctx.send("❌ Announcement channel not found.", delete_after=5)
+        return
+
+    # Send the message to the announcement channel
+    await channel.send(message)
+    
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} ({bot.user.id})")
