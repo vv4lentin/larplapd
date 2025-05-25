@@ -1,6 +1,6 @@
 import discord
-from discord import Embed, Colour, ButtonStyle, Interaction, Member, Permissions, Modal, TextInput
-from discord.ui import Button, View
+from discord import Embed, Colour, ButtonStyle, Interaction, Member, Permissions
+from discord.ui import Button, View, Modal, TextInput
 from discord.ext import commands
 
 class CancelButton(View):
