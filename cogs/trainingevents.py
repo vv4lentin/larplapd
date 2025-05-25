@@ -1,5 +1,4 @@
 import discord
-import discord.py
 from discord import app_commands, Embed, Colour, ButtonStyle, Interaction, Member
 from discord.ui import Button, View
 from discord.ext import commands
