@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from discord import ui, app_commands
+from discord import ui
 import io
 from datetime import datetime
 import logging
@@ -41,16 +41,16 @@ CONFIG = {
 TICKET_TYPE_MAPPING = {
     "general": {"display": "General Ticket", "description": "General support help", "emoji": "❓"},
     "ia": {"display": "Internal Affairs Ticket", "description": "Report an LAPD Officer", "emoji": "🚔"},
-    "boc": {"display": "Board of Chiefs Ticket", "description": "Highly sensitive issues, important things", "emoji": "👑"},
+    "boc": {"display": "Board of Chiefs", "description": "Highly sensitive issues, important things", "emoji": "👑"},
     "botdev": {"display": "Bot Development Ticket", "description": "Report a bug", "emoji": "🤖"}
 }
 
 class TicketActionView(ui.View):
-    def __init__(self, cog, owner, ticket_type):
+    def __init__(self, cog, ticket_data):
         super().__init__(timeout=None)
         self.cog = cog
-        self.owner = owner
-        self.ticket_type = ticket_type
+        self.owner = ticket_data["owner"]
+        self.ticket_type = ticket_data["type"]
 
     @ui.button(label="Claim", style=discord.ButtonStyle.primary, emoji="✅")
     async def claim(self, interaction: discord.Interaction, button: ui.Button):
@@ -72,11 +72,11 @@ class TicketActionView(ui.View):
         await self.cog.log_action("claim", interaction.user, interaction.channel, f"Claimed by {interaction.user.display_name}")
 
 class CloseActionView(ui.View):
-    def __init__(self, cog, owner, ticket_type):
+    def __init__(self, cog, ticket_data):
         super().__init__(timeout=None)
         self.cog = cog
-        self.owner = owner
-        self.ticket_type = ticket_type
+        self.owner = ticket_data["owner"]
+        self.ticket_type = ticket_data["type"]
 
     @ui.button(label="Transcript", style=discord.ButtonStyle.primary, emoji="📜")
     async def transcript(self, interaction: discord.Interaction, button: ui.Button):
@@ -87,7 +87,7 @@ class CloseActionView(ui.View):
     @ui.button(label="Delete", style=discord.ButtonStyle.danger, emoji="🗑️")
     async def delete(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.send_message("Deleting ticket...", ephemeral=True)
-        await self.cog.log_action("delete", interaction.user, interaction.channel, "Ticket deleted")
+        await self.cog.log_action("delete", {}, interaction.user, interaction.channel, "Ticket deleted")
         await interaction.channel.delete()
 
     @ui.button(label="Reopen", style=discord.ButtonStyle.success, emoji="🔄")
@@ -96,12 +96,13 @@ class CloseActionView(ui.View):
         self.cog.ticket_data[interaction.channel.id]["status"] = "open"
         await interaction.channel.edit(topic=f"Open | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
         await interaction.response.send_message("Ticket reopened.")
-        await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} has been reopened.")
+        await interaction.channel.send(f"{self.owner.mention Your} {TICKET_TYPE_MAPPING[self.ticket_type]['display']} ticket has been reopened.")
         await self.cog.log_action("reopen", interaction.user, interaction.channel, "Ticket reopened")
         await interaction.message.delete()
 
 class SupportDropdown(ui.Select):
-    def __init__(self):
+    def __init__(self, cog):
+        self.cog = cog
         options = [
             discord.SelectOption(
                 label=TICKET_TYPE_MAPPING["general"]["display"],
@@ -132,8 +133,8 @@ class SupportDropdown(ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            ticket_type = self.values[0]  # Value is now the internal ticket type (e.g., "general")
-            user_tickets = sum(1 for data in self.cog.ticket_data.values() if data["owner"].id == interaction.user.id)
+            ticket_type = self.values[0]
+            user_tickets = sum(1 for data in self.cog.ticket_data.values() if data.get("owner").id == interaction.user.id)
             if user_tickets >= CONFIG["max_tickets_per_user"]:
                 await interaction.response.send_message(
                     f"You've reached the maximum of {CONFIG['max_tickets_per_user']} open tickets.",
@@ -149,7 +150,7 @@ class SupportDropdownView(ui.View):
     def __init__(self, cog):
         super().__init__(timeout=None)
         self.cog = cog
-        self.add_item(SupportDropdown())
+        self.add_item(SupportDropdown(cog))  # Pass cog to SupportDropdown
 
 class CloseRequestView(ui.View):
     def __init__(self, cog):
@@ -158,12 +159,12 @@ class CloseRequestView(ui.View):
 
     @ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🔒")
     async def close(self, interaction: discord.Interaction, button: ui.Button):
-        await self.cog.close_ticket(interaction)
+        await self.cog.close(interaction)
 
     @ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.message.delete()
-        await interaction.response.send_message("Close request canceled.", ephemeral=True)
+        await interaction.response.send_message("Close request cancelled.", ephemeral=True)
 
 class Support(commands.Cog):
     def __init__(self, bot):
@@ -175,7 +176,6 @@ class Support(commands.Cog):
         try:
             with open("ticket_data.json", "r") as f:
                 data = json.load(f)
-                # Convert string keys to integers
                 self.ticket_data = {int(k): v for k, v in data.items()}
         except FileNotFoundError:
             self.ticket_data = {}
@@ -209,7 +209,6 @@ class Support(commands.Cog):
             else:
                 logger.warning(f"Role ID {role_id} for {ticket_type} not found.")
 
-        # Get category for the ticket type
         category_id = CONFIG["ticket_categories"].get(ticket_type)
         category = None
         if category_id:
@@ -218,7 +217,6 @@ class Support(commands.Cog):
                 logger.warning(f"Category ID {category_id} for {ticket_type} is not a valid category. Falling back to panel channel category.")
                 category = None
 
-        # Fallback to panel channel's category
         if not category:
             panel_channel = guild.get_channel(CONFIG["panel_channel_id"])
             if panel_channel and panel_channel.category:
@@ -248,7 +246,7 @@ class Support(commands.Cog):
 
         embed = discord.Embed(
             title=f"Los Angeles Police Department | {TICKET_TYPE_MAPPING[ticket_type]['display']}",
-            description="An officer will assist you soon. Please describe your issue. If you chose the wrong ticket type, use `/close`.",
+            description="An officer will assist you soon. Please describe your issue. If you chose the wrong ticket type, use `!close`.",
             color=discord.Color.green(),
             timestamp=datetime.now()
         )
@@ -257,7 +255,7 @@ class Support(commands.Cog):
         embed.add_field(name="Status", value="Open", inline=True)
         embed.set_footer(text=f"Ticket ID: {channel.id}")
 
-        view = TicketActionView(self, interaction.user, ticket_type)
+        view = TicketActionView(self, self.ticket_data[channel.id])
         content = f"{interaction.user.mention} {role_mention}".strip()
         await channel.send(content=content, embed=embed, view=view)
         await interaction.response.send_message(f"Ticket created: {channel.mention}", ephemeral=True)
@@ -298,7 +296,6 @@ class Support(commands.Cog):
         claimer = ticket_data.get("claimed_by")
         ticket_type = ticket_data.get("type", "unknown")
 
-        # Reset permissions: only bot and claimer (if exists) retain access
         new_overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
@@ -324,7 +321,7 @@ class Support(commands.Cog):
         )
         embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
         embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-        view = CloseActionView(self, owner, ticket_type)
+        view = CloseActionView(self, ticket_data)
         await interaction.response.send_message(embed=embed, view=view)
         await channel.send(f"{owner.mention} Your {TICKET_TYPE_MAPPING.get(ticket_type, {}).get('display', 'ticket')} has been closed. {'Only the claimer retains access.' if claimer else 'All user access has been removed.'}")
         await self.log_action("close", interaction.user, channel, f"Claimer retained: {claimer.mention if claimer else 'None'}")
@@ -344,7 +341,7 @@ class Support(commands.Cog):
             await log_channel.send(embed=embed)
 
     @commands.command()
-    @app_commands.command(name="panel", description="Create the ticket panel")
+    @commands.has_permissions(manage_guild=True)
     async def panel(self, ctx: commands.Context):
         try:
             embed = discord.Embed(
@@ -378,10 +375,9 @@ class Support(commands.Cog):
             await ctx.send("❌ Error creating panel.", delete_after=5)
 
     @commands.command()
-    @app_commands.command(name="close", description="Request to close the current ticket")
     async def close(self, ctx: commands.Context):
         if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.", ephemeral=True)
+            await ctx.send("This is not a ticket channel.")
             return
         embed = discord.Embed(
             title="Close Request",
@@ -393,21 +389,20 @@ class Support(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.command()
-    @app_commands.command(name="forceclose", description="Force close a ticket (staff only)")
     async def forceclose(self, ctx: commands.Context):
         if not any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
-            await ctx.send("You don't have permission to force close tickets.", ephemeral=True)
+            await ctx.send("You don't have permission to force close tickets.")
             return
         if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.", ephemeral=True)
+            await ctx.send("This is not a ticket channel.")
             return
-        await self.close_ticket(ctx)
+        interaction = await ctx.send("Closing ticket...")
+        await self.close_ticket(interaction)
 
     @commands.command()
-    @app_commands.command(name="add", description="Add a member to the ticket")
     async def add(self, ctx: commands.Context, member: discord.Member):
         if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.", ephemeral=True)
+            await ctx.send("This is not a ticket channel.")
             return
         try:
             await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True)
@@ -415,13 +410,12 @@ class Support(commands.Cog):
             await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
         except Exception as e:
             logger.error(f"Error adding member: {str(e)}")
-            await ctx.send("❌ Error adding member.", ephemeral=True)
+            await ctx.send("❌ Error adding member.")
 
     @commands.command()
-    @app_commands.command(name="remove", description="Remove a member from the ticket")
     async def remove(self, ctx: commands.Context, member: discord.Member):
         if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.", ephemeral=True)
+            await ctx.send("This is not a ticket channel.")
             return
         try:
             await ctx.channel.edit_permissions(member, overwrite=None)
@@ -429,10 +423,9 @@ class Support(commands.Cog):
             await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
         except Exception as e:
             logger.error(f"Error removing member: {str(e)}")
-            await ctx.send("❌ Error removing member.", ephemeral=True)
+            await ctx.send("❌ Error removing member.")
 
     @commands.command()
-    @app_commands.command(name="ticketstatus", description="Check the status of the current or all tickets")
     async def ticketstatus(self, ctx: commands.Context):
         if ctx.channel.id in self.ticket_data:
             ticket = self.ticket_data[ctx.channel.id]
@@ -466,7 +459,7 @@ class Support(commands.Cog):
                     embed.description = "No active tickets."
                 await ctx.send(embed=embed)
             else:
-                await ctx.send("You can only check the status of your own ticket.", ephemeral=True)
+                await ctx.send("You can only check the status of your own ticket.")
 
 async def setup(bot):
     await bot.add_cog(Support(bot))
