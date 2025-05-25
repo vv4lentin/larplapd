@@ -14,8 +14,7 @@ intents.members = True  # Optional, enable if needed for member-related features
 # Initialize bot with command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Set bot owner IDs
-bot.owner_ids = {1038522974988411000, 1320762191661764689, 1009636030665740418, 700054192911548456}  # Updated owner IDs
+# Set bot owner IDsr IDs
 
 # Initialize global variables
 auto_role_enabled = False
@@ -31,12 +30,6 @@ async def say(ctx, *, message: str):
     except discord.Forbidden:
         pass  # If the bot can't delete the message, just ignore the error
     await ctx.send(message)
-
-@bot.command()
-@commands.is_owner()
-async def ownercheck(ctx):
-    """Test command to verify if the user is a bot owner."""
-    await ctx.send(f"{ctx.author.mention}, you are a bot owner!")
 
 @bot.event
 async def on_ready():
