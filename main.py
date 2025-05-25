@@ -52,6 +52,12 @@ async def load_extensions():
     except Exception as e:
         print(f"Failed to load LAPD Manage cog: {e}")
 
+    try:
+        await bot.load_extension("cogs.trainingevents")
+        print("Loaded Training and Events cog")
+    except Exception as e:
+        print(f"Failed to load Training and Events cog: {e}")
+
 @bot.event
 async def on_member_join(member: discord.Member):
     global auto_role_enabled, role_to_assign
