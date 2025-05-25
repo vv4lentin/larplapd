@@ -27,7 +27,6 @@ class TrainingEvents(commands.Cog):
         self.bot = bot
 
     @commands.command(name="sync", description="Syncs slash commands for the specified guild.")
-    @commands.has_permissions(administrator=True)
     async def sync(self, ctx: commands.Context):
         # Check if the command is run in the correct guild
         if str(ctx.guild.id) != "1292523481539543193":
