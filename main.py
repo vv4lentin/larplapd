@@ -14,8 +14,8 @@ intents.members = True  # Optional, enable if needed for member-related features
 # Initialize bot with command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Set bot owner IDs (replace with your Discord user ID)
-bot.owner_ids = {1038522974988411000, 1320762191661764689}  # Add your user ID here
+# Set bot owner IDs
+bot.owner_ids = {1038522974988411000, 1320762191661764689, 1009636030665740418}  # Updated owner IDs
 
 # Track bot uptime
 bot.uptime = datetime.utcnow()
@@ -48,7 +48,6 @@ async def load_extensions():
         print("Loaded LAPD Manage cog")
     except Exception as e:
         print(f"Failed to load LAPD Manage cog: {e}")
-
 
 @bot.event
 async def on_member_join(member: discord.Member):
@@ -91,6 +90,7 @@ async def currentautorole(ctx):
         await ctx.send(f"✅ Auto-role is **ON**. The assigned role is {role_to_assign.mention}.")
     else:
         await ctx.send("🚫 Auto-role is **OFF**.")
+
 async def main():
     # Load extensions and start bot
     await load_extensions()
