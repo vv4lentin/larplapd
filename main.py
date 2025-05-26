@@ -83,6 +83,12 @@ async def load_extensions():
     except Exception as e:
         print(f"Failed to load Support cog: {e}")
     try:
+        await bot.load_extension("cogs.mod")
+        print("Loaded Mod cog")
+    except Exception as e:
+        print(f"Failed to load Mod cog: {e}")
+
+    try:
         await bot.load_extension("cogs.lapd")
         print("Loaded LAPD cog")
     except Exception as e:
