@@ -115,5 +115,52 @@ class Mod(commands.Cog):
         except discord.HTTPException as e:
             await ctx.send(f"Error: Failed to timeout user. {e}")
 
+    @commands.command(name="unban")
+    async def unban(self, ctx: commands.Context, user_id: int, *, reason: str = None):
+        """Unban a user by their ID."""
+        if not self.check_permissions(ctx):
+            await self.send_unauthorized_alert(ctx)
+            return
+        try:
+            user = await self.bot.fetch_user(user_id)
+            await ctx.guild.unban(user, reason=reason)
+            embed = discord.Embed(
+                title="User Unbanned",
+                description=f"{user.mention} ({user.id}) has been unbanned.",
+                color=discord.Color.green(),
+                timestamp=datetime.now()
+            )
+            embed.add_field(name="Reason", value=reason or "No reason provided", inline=False)
+            embed.add_field(name="Moderator", value=ctx.author.mention, inline=False)
+            await ctx.send(embed=embed)
+        except discord.NotFound:
+            await ctx.send("Error: User not found or not banned.")
+        except discord.Forbidden:
+            await ctx.send("Error: I don't have permission to unban this user.")
+        except discord.HTTPException as e:
+            await ctx.send(f"Error: Failed to unban user. {e}")
+
+    @commands.command(name="untimeout")
+    async def untimeout(self, ctx: commands.Context, member: discord.Member, *, reason: str = None):
+        """Remove a timeout from a user."""
+        if not self.check_permissions(ctx):
+            await self.send_unauthorized_alert(ctx)
+            return
+        try:
+            await member.timeout(None, reason=reason)
+            embed = discord.Embed(
+                title="User Timeout Removed",
+                description=f"Timeout has been removed from {member.mention}.",
+                color=discord.Color.green(),
+                timestamp=datetime.now()
+            )
+            embed.add_field(name="Reason", value=reason or "No reason provided", inline=False)
+            embed.add_field(name="Moderator", value=ctx.author.mention, inline=False)
+            await ctx.send(embed=embed)
+        except discord.Forbidden:
+            await ctx.send("Error: I don't have permission to remove timeout from this user.")
+        except discord.HTTPException as e:
+            await ctx.send(f"Error: Failed to remove timeout. {e}")
+
 async def setup(bot):
     await bot.add_cog(Mod(bot))
