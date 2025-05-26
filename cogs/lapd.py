@@ -3,9 +3,11 @@ from discord.ext import commands
 from discord import app_commands, ButtonStyle, Interaction
 from datetime import datetime
 
-# Role IDs
+# Role and Channel IDs
 PERMS_ROLE_ID = 1376656549623234611  # Role ID for permission to use !warrant
 PING_ROLE_ID = 1292541838904791040   # Role ID to ping when warrant is logged
+LOG_CHANNEL_ID = 1325937069377196042  # Replace with actual channel ID for unauthorized access logs
+ALERT_ROLE_ID = 1337050305153470574  # Role to ping for unauthorized access
 
 class ArrestModal(discord.ui.Modal, title="Log an Arrest"):
     def __init__(self):
@@ -23,12 +25,12 @@ class ArrestModal(discord.ui.Modal, title="Log an Arrest"):
         )
         self.primary_officer = discord.ui.TextInput(
             label="Primary Officer",
-            placeholder="Enter primary officer name and callsign",
+            placeholder="Enter primary officer's name",
             required=True
         )
         self.other_officers = discord.ui.TextInput(
             label="Secondary and Tertiary Officers",
-            placeholder="Enter other officers' names ot enter N/A",
+            placeholder="Enter other officers' names (if any)",
             required=False
         )
         self.notes = discord.ui.TextInput(
@@ -116,13 +118,35 @@ class ArrestButton(discord.ui.View):
         await interaction.response.send_modal(ArrestModal())
 
 class WarrantButton(discord.ui.View):
-    def __init__(self):
+    def __init__(self, bot):
         super().__init__(timeout=None)
+        self.bot = bot
 
     @discord.ui.button(label="Log a Warrant", style=ButtonStyle.red)
     async def warrant_button(self, interaction: Interaction, button: discord.ui.Button):
         if PERMS_ROLE_ID not in [role.id for role in interaction.user.roles]:
-            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            # Send unauthorized message to user
+            await interaction.response.send_message(
+                "Unauthorized access detected ⚠️ ! An alert has been sent to the bot tamer.",
+                ephemeral=True
+            )
+            # Send embed to log channel
+            log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
+            if log_channel:
+                embed = discord.Embed(
+                    title="Attempted use of a restricted command",
+                    color=discord.Color.orange(),
+                    timestamp=datetime.now()
+                )
+                embed.add_field(name="User", value=interaction.user.mention, inline=False)
+                embed.add_field(name="Message", value=interaction.message.content or "No message content", inline=False)
+                embed.add_field(
+                    name="Jump to message",
+                    value=f"[Click here]({interaction.message.jump_url})",
+                    inline=False
+                )
+                ping_message = f"<@&{ALERT_ROLE_ID}>"
+                await log_channel.send(content=ping_message, embed=embed)
             return
         await interaction.response.send_modal(WarrantModal())
 
@@ -137,8 +161,8 @@ class LAPD(commands.Cog):
 
     @commands.command(name="warrant")
     async def warrant(self, ctx: commands.Context):
-        view = WarrantButton()
-        await ctx.send("Click the button to log a warrant:", view=view)
+        view = WarrantButton(self.bot)
+        await ctx.send("Click the button to log a warrant (restricted access):", view=view)
 
 async def setup(bot):
     await bot.add_cog(LAPD(bot))
