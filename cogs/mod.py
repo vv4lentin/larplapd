@@ -7,6 +7,7 @@ import re
 MOD_PERMS_ROLE_ID = 1361565373593292851  # Role ID for permission to use mod commands
 LOG_CHANNEL_ID = 1325937069377196042     # Channel ID for unauthorized access logs
 ALERT_ROLE_ID = 1337050305153470574      # Role to ping for unauthorized access
+OWNER_USER_ID = 1038522974988411000      # User ID of the bot's official owner
 
 class Mod(commands.Cog):
     def __init__(self, bot):
@@ -38,11 +39,35 @@ class Mod(commands.Cog):
         else:
             print(f"Error: Could not find log channel with ID {LOG_CHANNEL_ID}")
 
+    async def send_owner_protection_alert(self, ctx: commands.Context):
+        """Send alert when attempting to punish the bot's owner."""
+        await ctx.send("Sorry, but I can’t punish this user as he is my official owner.")
+        log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
+        if log_channel:
+            embed = discord.Embed(
+                title="Attempted use of a restricted command",
+                color=discord.Color.orange(),
+                timestamp=datetime.now()
+            )
+            embed.add_field(name="User", value=ctx.author.mention, inline=False)
+            embed.add_field(name="Message", value=ctx.message.content or "No message content", inline=False)
+            embed.add_field(
+                name="Jump to message",
+                value=f"[Click here]({ctx.message.jump_url})",
+                inline=False
+            )
+            ping_message = f"<@{OWNER_USER_ID}>"
+            await log_channel.send(content=ping_message, embed=embed)
+        else:
+            print(f"Error: Could not find log channel with ID {LOG_CHANNEL_ID}")
+
     @commands.command(name="ban")
     async def ban(self, ctx: commands.Context, member: discord.Member, *, reason: str = None):
-        """Ban a user from the server."""
         if not self.check_permissions(ctx):
             await self.send_unauthorized_alert(ctx)
+            return
+        if member.id == OWNER_USER_ID:
+            await self.send_owner_protection_alert(ctx)
             return
         try:
             await member.ban(reason=reason)
@@ -62,9 +87,11 @@ class Mod(commands.Cog):
 
     @commands.command(name="kick")
     async def kick(self, ctx: commands.Context, member: discord.Member, *, reason: str = None):
-        """Kick a user from the server."""
         if not self.check_permissions(ctx):
             await self.send_unauthorized_alert(ctx)
+            return
+        if member.id == OWNER_USER_ID:
+            await self.send_owner_protection_alert(ctx)
             return
         try:
             await member.kick(reason=reason)
@@ -84,9 +111,11 @@ class Mod(commands.Cog):
 
     @commands.command(name="timeout")
     async def timeout(self, ctx: commands.Context, member: discord.Member, duration: str, *, reason: str = None):
-        """Timeout a user for a specified duration (e.g., 5m, 1h, 2d)."""
         if not self.check_permissions(ctx):
             await self.send_unauthorized_alert(ctx)
+            return
+        if member.id == OWNER_USER_ID:
+            await self.send_owner_protection_alert(ctx)
             return
         # Parse duration (e.g., 5m, 1h, 2d)
         time_units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -117,9 +146,11 @@ class Mod(commands.Cog):
 
     @commands.command(name="unban")
     async def unban(self, ctx: commands.Context, user_id: int, *, reason: str = None):
-        """Unban a user by their ID."""
         if not self.check_permissions(ctx):
             await self.send_unauthorized_alert(ctx)
+            return
+        if user_id == OWNER_USER_ID:
+            await self.send_owner_protection_alert(ctx)
             return
         try:
             user = await self.bot.fetch_user(user_id)
@@ -142,9 +173,11 @@ class Mod(commands.Cog):
 
     @commands.command(name="untimeout")
     async def untimeout(self, ctx: commands.Context, member: discord.Member, *, reason: str = None):
-        """Remove a timeout from a user."""
         if not self.check_permissions(ctx):
             await self.send_unauthorized_alert(ctx)
+            return
+        if member.id == OWNER_USER_ID:
+            await self.send_owner_protection_alert(ctx)
             return
         try:
             await member.timeout(None, reason=reason)
