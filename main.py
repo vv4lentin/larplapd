@@ -32,7 +32,6 @@ async def say(ctx, *, message: str):
         pass
     await ctx.send(message)
 
-
 @bot.command(name="announce")
 async def announce(ctx, *, message: str):
     # Check if the user has one of the allowed roles
@@ -123,6 +122,22 @@ async def currentautorole(ctx):
         await ctx.send(f"✅ Auto-role is **ON**. The assigned role is {role_to_assign.mention}.")
     else:
         await ctx.send("🚫 Auto-role is **OFF**.")
+
+@bot.command()
+async def nick(ctx, member: discord.Member, *, nickname: str = None):
+    """Change a member's nickname. Use !nick @member new_nickname or !nick @member to reset."""
+    try:
+        await ctx.message.delete()  # Delete the command message
+        old_nick = member.nick or member.name
+        await member.edit(nick=nickname)
+        if nickname:
+            await ctx.send(f"✅ Changed {member.mention}'s nickname from '{old_nick}' to '{nickname}'.")
+        else:
+            await ctx.send(f"✅ Reset {member.mention}'s nickname to default.")
+    except discord.Forbidden:
+        await ctx.send("❌ I don't have permission to change this member's nickname.")
+    except discord.HTTPException as e:
+        await ctx.send(f"❌ Failed to change nickname: {e}")
 
 async def main():
     await load_extensions()
