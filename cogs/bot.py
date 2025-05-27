@@ -1,12 +1,18 @@
 import discord
 from discord.ext import commands
 from discord.ui import Button, View
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Bot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.owner_id = 1038522974988411000
         self.alert_channel_id = 1325937069377196042
+        logger.info("Bot cog initialized")
 
     async def check_owner(self, ctx):
         if ctx.author.id != self.owner_id:
@@ -22,103 +28,130 @@ class Bot(commands.Cog):
                     color=discord.Color.red()
                 )
                 embed.set_footer(text=f"User: {ctx.author} ({ctx.author.id})")
-                await alert_channel.send(embed=embed)
+                try:
+                    await alert_channel.send(embed=embed)
+                    logger.info(f"Alert sent for unauthorized command use by {ctx.author} ({ctx.author.id})")
+                except Exception as e:
+                    logger.error(f"Failed to send alert: {e}")
             return False
         return True
 
     @commands.command()
     async def botpanel(self, ctx):
+        logger.info(f"botpanel command invoked by {ctx.author} ({ctx.author.id})")
         if not await self.check_owner(ctx):
+            logger.info(f"Unauthorized access to botpanel by {ctx.author} ({ctx.author.id})")
             return
 
-        embed = discord.Embed(
-            title="Bot Panel",
-            description="Hello, please select an action.",
-            color=discord.Color.blue()
-        )
+        try:
+            embed = discord.Embed(
+                title="Bot Panel",
+                description="Hello, please select an action.",
+                color=discord.Color.blue()
+            )
 
-        view = View()
+            view = View()
 
-        # Button 1: Set DND
-        button_dnd = Button(label="Set DND", style=discord.ButtonStyle.red)
-        async def dnd_callback(interaction):
-            if interaction.user.id != self.owner_id:
-                return
-            await self.bot.change_presence(status=discord.Status.dnd)
-            await interaction.response.send_message("Status set to DND.", ephemeral=True)
-        button_dnd.callback = dnd_callback
+            # Button 1: Set DND
+            button_dnd = Button(label="Set DND", style=discord.ButtonStyle.red)
+            async def dnd_callback(interaction):
+                if interaction.user.id != self.owner_id:
+                    return
+                await self.bot.change_presence(status=discord.Status.dnd)
+                await interaction.response.send_message("Status set to DND.", ephemeral=True)
+                logger.info("DND status set")
+            button_dnd.callback = dnd_callback
 
-        # Button 2: Set Idle
-        button_idle = Button(label="Set Idle", style=discord.ButtonStyle.yellow)
-        async def idle_callback(interaction):
-            if interaction.user.id != self.owner_id:
-                return
-            await self.bot.change_presence(status=discord.Status.idle)
-            await interaction.response.send_message("Status set to Idle.", ephemeral=True)
-        button_idle.callback = idle_callback
+            # Button 2: Set Idle
+            button_idle = Button(label="Set Idle", style=discord.ButtonStyle.yellow)
+            async def idle_callback(interaction):
+                if interaction.user.id != self.owner_id:
+                    return
+                await self.bot.change_presence(status=discord.Status.idle)
+                await interaction.response.send_message("Status set to Idle.", ephemeral=True)
+                logger.info("Idle status set")
+            button_idle.callback = idle_callback
 
-        # Button 3: Set Inactive
-        button_inactive = Button(label="Set Inactive", style=discord.ButtonStyle.grey)
-        async def inactive_callback(interaction):
-            if interaction.user.id != self.owner_id:
-                return
-            await self.bot.change_presence(status=discord.Status.invisible)
-            await interaction.response.send_message("Status set to Inactive.", ephemeral=True)
-        button_inactive.callback = inactive_callback
+            # Button 3: Set Inactive
+            button_inactive = Button(label="Set Inactive", style=discord.ButtonStyle.grey)
+            async def inactive_callback(interaction):
+                if interaction.user.id != self.owner_id:
+                    return
+                await self.bot.change_presence(status=discord.Status.invisible)
+                await interaction.response.send_message("Status set to Inactive.", ephemeral=True)
+                logger.info("Inactive status set")
+            button_inactive.callback = inactive_callback
 
-        # Button 4: Set Online
-        button_online = Button(label="Set Online", style=discord.ButtonStyle.green)
-        async def online_callback(interaction):
-            if interaction.user.id != self.owner_id:
-                return
-            await self.bot.change_presence(status=discord.Status.online)
-            await interaction.response.send_message("Status set to Online.", ephemeral=True)
-        button_online.callback = online_callback
+            # Button 4: Set Online
+            button_online = Button(label="Set Online", style=discord.ButtonStyle.green)
+            async def online_callback(interaction):
+                if interaction.user.id != self.owner_id:
+                    return
+                await self.bot.change_presence(status=discord.Status.online)
+                await interaction.response.send_message("Status set to Online.", ephemeral=True)
+                logger.info("Online status set")
+            button_online.callback = online_callback
 
-        # Button 5: Set Activity
-        button_activity = Button(label="Set Activity", style=discord.ButtonStyle.blurple)
-        async def activity_callback(interaction):
-            if interaction.user.id != self.owner_id:
-                return
-            await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="Los Angeles Police Department"))
-            await interaction.response.send_message("Activity set to 'Watching Los Angeles Police Department'.", ephemeral=True)
-        button_activity.callback = activity_callback
+            # Button 5: Set Activity
+            button_activity = Button(label="Set Activity", style=discord.ButtonStyle.blurple)
+            async def activity_callback(interaction):
+                if interaction.user.id != self.owner_id:
+                    return
+                await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="Los Angeles Police Department"))
+                await interaction.response.send_message("Activity set to 'Watching Los Angeles Police Department'.", ephemeral=True)
+                logger.info("Activity set to Watching Los Angeles Police Department")
+            button_activity.callback = activity_callback
 
-        # Button 6: Shutdown
-        button_shutdown = Button(label="Shutdown", style=discord.ButtonStyle.danger)
-        async def shutdown_callback(interaction):
-            if interaction.user.id != self.owner_id:
-                return
-            await interaction.response.send_message("Shutting down...", ephemeral=True)
-            await self.bot.close()
-        button_shutdown.callback = shutdown_callback
+            # Button 6: Shutdown
+            button_shutdown = Button(label="Shutdown", style=discord.ButtonStyle.danger)
+            async def shutdown_callback(interaction):
+                if interaction.user.id != self.owner_id:
+                    return
+                await interaction.response.send_message("Shutting down...", ephemeral=True)
+                await self.bot.close()
+                logger.info("Bot shutdown initiated")
+            button_shutdown.callback = shutdown_callback
 
-        # Add buttons to view
-        view.add_item(button_dnd)
-        view.add_item(button_idle)
-        view.add_item(button_inactive)
-        view.add_item(button_online)
-        view.add_item(button_activity)
-        view.add_item(button_shutdown)
+            # Add buttons to view
+            view.add_item(button_dnd)
+            view.add_item(button_idle)
+            view.add_item(button_inactive)
+            view.add_item(button_online)
+            view.add_item(button_activity)
+            view.add_item(button_shutdown)
 
-        await ctx.send(embed=embed, view=view)
+            await ctx.send(embed=embed, view=view)
+            logger.info("Bot panel sent successfully")
+        except Exception as e:
+            logger.error(f"Error in botpanel command: {e}")
+            await ctx.send("An error occurred while launching the bot panel. Please try again.", delete_after=5)
 
     @commands.command()
     async def purge(self, ctx, amount: int):
+        logger.info(f"purge command invoked by {ctx.author} ({ctx.author.id}) with amount {amount}")
         if not await self.check_owner(ctx):
+            logger.info(f"Unauthorized access to purge by {ctx.author} ({ctx.author.id})")
             return
 
         if amount < 1:
             await ctx.send("Please specify a number greater than 0.", delete_after=5)
+            logger.info("Purge failed: amount less than 1")
             return
 
         # Check if bot has manage_messages permission
         if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
             await ctx.send("I don't have permission to manage messages in this channel.", delete_after=5)
+            logger.info("Purge failed: bot lacks manage_messages permission")
             return
 
-        await ctx.channel.purge(limit=amount + 1)  # +1 to include the command message
-        await ctx.send(f"Purged {amount} message(s).", delete_after=5)
+        try:
+            await ctx.channel.purge(limit=amount + 1)  # +1 to include the command message
+            await ctx.send(f"Purged {amount} message(s).", delete_after=5)
+            logger.info(f"Purged {amount} messages")
+        except Exception as e:
+            logger.error(f"Error in purge command: {e}")
+            await ctx.send("An error occurred while purging messages. Please try again.", delete_after=5)
 
 async def setup(bot):
     await bot.add_cog(Bot(bot))
+    logger.info("Bot cog loaded")
