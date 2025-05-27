@@ -115,7 +115,7 @@ async def test(ctx):
 
 @bot.command()
 async def dumb(ctx):
-    await ctx.send("Yeah I think we all know that we are talking about <@1320762191661764689>.. Sorry :)")
+    await ctx.send("Yeah I think we all know that we are talking about <@1023631942853341364> :)")
 
 @bot.command()
 async def hello(ctx):
