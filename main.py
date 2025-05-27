@@ -110,6 +110,10 @@ async def test(ctx):
     await ctx.send("Test command executed.")
 
 @bot.command()
+async def hello(ctx):
+    await ctx.send("You thought I would say hello didn't you, bitch?")
+    
+@bot.command()
 async def autorole(ctx, status: str, role: discord.Role = None):
     global auto_role_enabled, role_to_assign
     if status.lower() == "on":
