@@ -24,11 +24,11 @@ class CancelButton(View):
 class TrainingModal(Modal, title="Training Announcement"):
     def __init__(self):
         super().__init__()
-        self.when = TextInput(label="When", placeholder="e.g., 2025-05-25 18:00", required=True)
-        self.location = TextInput(label="Location", placeholder="e.g., Training Room A", required=True)
-        self.servercode = TextInput(label="Server Code", placeholder="e.g., ABC123", required=True)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JohnDoe", required=False)
-        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Bring your gear", required=False, style=discord.TextStyle.paragraph)
+        self.when = TextInput(label="When", required=True)
+        self.location = TextInput(label="Location", required=True)
+        self.servercode = TextInput(label="Server Code", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
+        self.notes = TextInput(label="Notes (Optional)", required=False, style=discord.TextStyle.paragraph)
         self.add_item(self.when)
         self.add_item(self.location)
         self.add_item(self.servercode)
@@ -66,11 +66,11 @@ class TrainingModal(Modal, title="Training Announcement"):
 class OrientationModal(Modal, title="Orientation Announcement"):
     def __init__(self):
         super().__init__()
-        self.when = TextInput(label="When", placeholder="e.g., 2025-05-25 18:00", required=True)
-        self.location = TextInput(label="Location", placeholder="e.g., Orientation Room B", required=True)
-        self.servercode = TextInput(label="Server Code", placeholder="e.g., XYZ789", required=True)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
-        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Prepare notes", required=False, style=discord.TextStyle.paragraph)
+        self.when = TextInput(label="When", required=True)
+        self.location = TextInput(label="Location", required=True)
+        self.servercode = TextInput(label="Server Code", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
+        self.notes = TextInput(label="Notes (Optional)", required=False, style=discord.TextStyle.paragraph)
         self.add_item(self.when)
         self.add_item(self.location)
         self.add_item(self.servercode)
@@ -109,9 +109,9 @@ class LogOrientationModal(Modal, title="Log Orientation Result"):
     def __init__(self, trainee: Member):
         super().__init__()
         self.trainee = trainee
-        self.result = TextInput(label="Result", placeholder="e.g., Pass/Fail", required=True)
-        self.comments = TextInput(label="Comments", placeholder="e.g., Great performance", required=True, style=discord.TextStyle.paragraph)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
+        self.result = TextInput(label="Result", required=True)
+        self.comments = TextInput(label="Comments", required=True, style=discord.TextStyle.paragraph)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
         self.add_item(self.result)
         self.add_item(self.comments)
         self.add_item(self.cohost)
@@ -152,9 +152,9 @@ class LogTrainingModal(Modal, title="Log Training Result"):
     def __init__(self, trainee: Member):
         super().__init__()
         self.trainee = trainee
-        self.result = TextInput(label="Result", placeholder="e.g., Pass/Fail", required=True)
-        self.comments = TextInput(label="Comments", placeholder="e.g., Excellent skills", required=True, style=discord.TextStyle.paragraph)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JohnDoe", required=False)
+        self.result = TextInput(label="Result", required=True)
+        self.comments = TextInput(label="Comments", required=True, style=discord.TextStyle.paragraph)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
         self.add_item(self.result)
         self.add_item(self.comments)
         self.add_item(self.cohost)
@@ -191,32 +191,15 @@ class LogTrainingModal(Modal, title="Log Training Result"):
         await channel.send(content=self.trainee.mention, embed=embed)
         await interaction.response.send_message("Training result logged successfully!", ephemeral=True)
 
-# Modal for Mass Shift Announcement
-class MassShiftModal(Modal, title="Mass Shift Announcement"):
-    def __init__(self):
-        super().__init__()
-
-    async def on_submit(self, interaction: Interaction):
-        channel = interaction.client.get_channel(1292541172807635066)
-        if not channel:
-            await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
-            return
-
-        message = await channel.send(
-            content=f"||<@&1292541838904791040>||\n{interaction.user.display_name} is hosting a **MASS SHIFT**.\n3+ votes required to start\nReact if attending ✅"
-        )
-        await message.add_reaction("✅")
-        await interaction.response.send_message("Mass shift announcement sent successfully!", ephemeral=True)
-
 # Modal for Log Mass Shift Result
 class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
     def __init__(self):
         super().__init__()
-        self.started = TextInput(label="Started at", placeholder="e.g., 2025-05-25 18:00", required=True)
-        self.ended = TextInput(label="Ended at", placeholder="e.g., 2025-05-25 19:00", required=True)
-        self.attendedusers = TextInput(label="Attended Users", placeholder="e.g., JohnDoe, JaneDoe", required=True)
-        self.promotedusers = TextInput(label="Promoted Users", placeholder="e.g., JohnDoe", required=True)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
+        self.started = TextInput(label="Started at", required=True)
+        self.ended = TextInput(label="Ended at", required=True)
+        self.attendedusers = TextInput(label="Attended Users", required=True)
+        self.promotedusers = TextInput(label="Promoted Users", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
         self.add_item(self.started)
         self.add_item(self.ended)
         self.add_item(self.attendedusers)
@@ -244,32 +227,15 @@ class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
         await channel.send(embed=embed)
         await interaction.response.send_message("Mass shift result logged successfully!", ephemeral=True)
 
-# Modal for SWAT Deployment Announcement
-class SWATDeploymentModal(Modal, title="SWAT Deployment Announcement"):
-    def __init__(self):
-        super().__init__()
-
-    async def on_submit(self, interaction: Interaction):
-        channel = interaction.client.get_channel(1348476059036815463)
-        if not channel:
-            await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
-            return
-
-        message = await channel.send(
-            content=f"||<@&1306381401830064201>||\n{interaction.user.display_name} is hosting a **SWAT DEPLOYMENT**.\n3+ votes required to start\nReact if attending ✅"
-        )
-        await message.add_reaction("✅")
-        await interaction.response.send_message("SWAT deployment announcement sent successfully!", ephemeral=True)
-
 # Modal for Log SWAT Deployment Result
 class LogSWATDeploymentModal(Modal, title="Log SWAT Deployment Result"):
     def __init__(self):
         super().__init__()
-        self.started = TextInput(label="Started at", placeholder="e.g., 2025-05-25 18:00", required=True)
-        self.ended = TextInput(label="Ended at", placeholder="e.g., 2025-05-25 19:00", required=True)
-        self.attendedusers = TextInput(label="Attended Users", placeholder="e.g., JohnDoe, JaneDoe", required=True)
-        self.promotedusers = TextInput(label="Promoted Users", placeholder="e.g., JohnDoe", required=True)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
+        self.started = TextInput(label="Started at", required=True)
+        self.ended = TextInput(label="Ended at", required=True)
+        self.attendedusers = TextInput(label="Attended Users", required=True)
+        self.promotedusers = TextInput(label="Promoted Users", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
         self.add_item(self.started)
         self.add_item(self.ended)
         self.add_item(self.attendedusers)
@@ -319,16 +285,32 @@ class EventsView(View):
     @discord.ui.button(label="Announce Mass Shift", style=ButtonStyle.green)
     async def mass_shift_button(self, interaction: Interaction, button: Button):
         try:
-            await interaction.response.send_modal(MassShiftModal())
+            channel = interaction.client.get_channel(1292541172807635066)
+            if not channel:
+                await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
+                return
+            message = await channel.send(
+                content=f"||<@&1292541838904791040>||\n{interaction.user.display_name} is hosting a **MASS SHIFT**.\n3+ votes required to start\nReact if attending ✅"
+            )
+            await message.add_reaction("✅")
+            await interaction.response.send_message("Mass shift announcement sent successfully!", ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"Error launching Mass Shift modal: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(f"Error sending Mass Shift announcement: {str(e)}", ephemeral=True)
 
     @discord.ui.button(label="Announce SWAT Deployment", style=ButtonStyle.green)
     async def swat_deployment_button(self, interaction: Interaction, button: Button):
         try:
-            await interaction.response.send_modal(SWATDeploymentModal())
+            channel = interaction.client.get_channel(1348476059036815463)
+            if not channel:
+                await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
+                return
+            message = await channel.send(
+                content=f"||<@&1306381401830064201>||\n{interaction.user.display_name} is hosting a **SWAT DEPLOYMENT**.\n3+ votes required to start\nReact if attending ✅"
+            )
+            await message.add_reaction("✅")
+            await interaction.response.send_message("SWAT deployment announcement sent successfully!", ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"Error launching SWAT Deployment modal: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(f"Error sending SWAT Deployment announcement: {str(e)}", ephemeral=True)
 
 # View for Result Logging
 class ResultView(View):
