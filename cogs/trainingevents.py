@@ -24,11 +24,11 @@ class CancelButton(View):
 class TrainingModal(Modal, title="Training Announcement"):
     def __init__(self):
         super().__init__()
-        self.when = TextInput(label="When", placeholder="e.g., 2025-05-25 18:00", required=True)
-        self.location = TextInput(label="Location", placeholder="e.g., Training Room A", required=True)
-        self.servercode = TextInput(label="Server Code", placeholder="e.g., ABC123", required=True)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JohnDoe", required=False)
-        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Bring your gear", required=False, style=discord.TextStyle.paragraph)
+        self.when = TextInput(label="When", placeholder="e.g.,  18:00", required=True)
+        self.location = TextInput(label="Location", placeholder="e.g., Briefing", required=True)
+        self.servercode = TextInput(label="Server Code", placeholder="e.g., LARole", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., Vavax989", required=False)
+        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Equip..", required=False, style=discord.TextStyle.paragraph)
         self.add_item(self.when)
         self.add_item(self.location)
         self.add_item(self.servercode)
@@ -66,11 +66,11 @@ class TrainingModal(Modal, title="Training Announcement"):
 class OrientationModal(Modal, title="Orientation Announcement"):
     def __init__(self):
         super().__init__()
-        self.when = TextInput(label="When", placeholder="e.g., 2025-05-25 18:00", required=True)
-        self.location = TextInput(label="Location", placeholder="e.g., Orientation Room B", required=True)
-        self.servercode = TextInput(label="Server Code", placeholder="e.g., XYZ789", required=True)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JaneDoe", required=False)
-        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Prepare notes", required=False, style=discord.TextStyle.paragraph)
+        self.when = TextInput(label="When", placeholder="e.g., 18:00", required=True)
+        self.location = TextInput(label="Location", placeholder="e.g., Briefing", required=True)
+        self.servercode = TextInput(label="Server Code", placeholder="e.g., laPD", required=True)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., Vavax989", required=False)
+        self.notes = TextInput(label="Notes (Optional)", placeholder="e.g., Prepare a notepad", required=False, style=discord.TextStyle.paragraph)
         self.add_item(self.when)
         self.add_item(self.location)
         self.add_item(self.servercode)
@@ -154,7 +154,7 @@ class LogTrainingModal(Modal, title="Log Training Result"):
         self.trainee = trainee
         self.result = TextInput(label="Result", placeholder="e.g., Pass/Fail", required=True)
         self.comments = TextInput(label="Comments", placeholder="e.g., Excellent skills", required=True, style=discord.TextStyle.paragraph)
-        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., JohnDoe", required=False)
+        self.cohost = TextInput(label="Co-Host / Helpers (Optional)", placeholder="e.g., Vavax989", required=False)
         self.add_item(self.result)
         self.add_item(self.comments)
         self.add_item(self.cohost)
