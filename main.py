@@ -87,12 +87,16 @@ async def load_extensions():
         print("Loaded Mod cog")
     except Exception as e:
         print(f"Failed to load Mod cog: {e}")
-
     try:
         await bot.load_extension("cogs.lapd")
         print("Loaded LAPD cog")
     except Exception as e:
         print(f"Failed to load LAPD cog: {e}")
+    try:
+        await bot.load_extension("cogs.bot")
+        print("Loaded Bot cog")
+    except Exception as e:
+        print(f"Failed to load Bot cog: {e}")
         
 @bot.event
 async def on_member_join(member: discord.Member):
