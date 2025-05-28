@@ -9,56 +9,6 @@ PING_ROLE_ID = 1292541838904791040   # Role ID to ping when warrant is logged
 LOG_CHANNEL_ID = 1325937069377196042  # Channel ID for unauthorized access logs
 ALERT_ROLE_ID = 1337050305153470574  # Role to ping for unauthorized access
 
-class ArrestModal(discord.ui.Modal, title="Log an Arrest"):
-    def __init__(self):
-        super().__init__()
-        self.suspect = discord.ui.TextInput(
-            label="Suspect",
-            placeholder="Enter suspect(s) name",
-            required=True
-        )
-        self.charges = discord.ui.TextInput(
-            label="Charges",
-            placeholder="List the charges",
-            required=True,
-            style=discord.TextStyle.paragraph
-        )
-        self.primary_officer = discord.ui.TextInput(
-            label="Primary Officer",
-            placeholder="Enter primary officer name",
-            required=True
-        )
-        self.other_officers = discord.ui.TextInput(
-            label="Secondary and Tertiary Officers",
-            placeholder="Enter other officers names and their callsign or N/A",
-            required=False
-        )
-        self.notes = discord.ui.TextInput(
-            label="Notes",
-            placeholder="Additional notes (optional)",
-            required=False,
-            style=discord.TextStyle.paragraph
-        )
-        self.add_item(self.suspect)
-        self.add_item(self.charges)
-        self.add_item(self.primary_officer)
-        self.add_item(self.other_officers)
-        self.add_item(self.notes)
-
-    async def on_submit(self, interaction: Interaction):
-        embed = discord.Embed(
-            title="New Arrest Log",
-            description="Please send the mugshot!",
-            color=discord.Color.green(),
-            timestamp=datetime.now()
-        )
-        embed.add_field(name="Suspect", value=self.suspect.value, inline=False)
-        embed.add_field(name="Crimes", value=self.charges.value, inline=False)
-        embed.add_field(name="Primary Officer", value=self.primary_officer.value, inline=False)
-        embed.add_field(name="Secondary and Tertiary Officers", value=self.other_officers.value or "None", inline=False)
-        embed.add_field(name="Notes", value=self.notes.value or "None", inline=False)
-        await interaction.response.send_message(embed=embed)
-
 class WarrantModal(discord.ui.Modal, title="Log a Warrant"):
     def __init__(self):
         super().__init__()
@@ -109,14 +59,6 @@ class WarrantModal(discord.ui.Modal, title="Log a Warrant"):
         ping_message = f"<@&{PING_ROLE_ID}>"
         await interaction.response.send_message(content=ping_message, embed=embed)
 
-class ArrestButton(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="Log an Arrest", style=ButtonStyle.green)
-    async def arrest_button(self, interaction: Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ArrestModal())
-
 class WarrantButton(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -128,12 +70,7 @@ class WarrantButton(discord.ui.View):
 class LAPD(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    @commands.command(name="arrest")
-    async def arrest(self, ctx: commands.Context):
-        view = ArrestButton()
-        await ctx.send("Click the button to log an arrest:", view=view)
-
+        
     @commands.command(name="warrant")
     async def warrant(self, ctx: commands.Context):
         if PERMS_ROLE_ID not in [role.id for role in ctx.author.roles]:
