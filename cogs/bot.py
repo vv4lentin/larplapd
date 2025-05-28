@@ -459,7 +459,7 @@ class Bot(commands.Cog):
             try:
                 if self.cog.maintenance_mode:
                     await interaction.client.change_presence(
-                        status=discord.Status.dnd,
+                        status=discord.Status.idle,
                         activity=discord.Activity(type=discord.ActivityType.watching, name="Under Maintenance")
                     )
                     await interaction.response.send_message("Maintenance mode enabled.", ephemeral=True)
