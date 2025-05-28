@@ -612,7 +612,6 @@ class bot(commands.Cog):
                 await interaction.response.send_message(f"Failed to refresh panel: {str(e)}", ephemeral=True)
 
     @commands.command(name='botpanel')
-    @commands.has_permissions(administrator=True)
     async def botpanel(self, ctx):
         logger.info(f"Botpanel command invoked by {ctx.author} in {ctx.guild.id}")
         try:
