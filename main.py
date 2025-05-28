@@ -122,30 +122,29 @@ async def test(ctx):
 async def dumb(ctx):
     await ctx.send("Yeah I think we all know that we are talking about <@1023631942853341364> :)")
 
-@commands.command(name='purge')
+@bot.command(name='purge')
 @commands.has_permissions(manage_messages=True)
 @commands.bot_has_permissions(manage_messages=True)
-async def purge(self, ctx, amount: int):
-    logger.info(f"Purge command invoked by {ctx.author} for {amount} messages")
+async def purge(ctx, amount: int):
     if amount < 1 or amount > 100:
-        await ctx.send("Please specify a number between 1 and 100.", ephemeral=True)
+        await ctx.send("Please specify a number between 1 and 100.", delete_after=5)
         return
     await ctx.channel.purge(limit=amount + 1)
     await ctx.send(f"Successfully deleted {amount} message(s).", delete_after=5)
 
 @purge.error
-async def purge_error(self, ctx, error):
-     if isinstance(error, commands.MissingPermissions):
-         await ctx.send("You need 'Manage Messages' permission.", ephemeral=True)
+async def purge_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You need 'Manage Messages' permission.", delete_after=5)
     elif isinstance(error, commands.BotMissingPermissions):
-         await ctx.send("I need 'Manage Messages' permission.", ephemeral=True)
-      elif isinstance(error, commands.MissingRequiredArgument):
-         await ctx.send("Please specify the number of messages to purge.", ephemeral=True)
-      elif isinstance(error, commands.CheckFailure):
+        await ctx.send("I need 'Manage Messages' permission.", delete_after=5)
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please specify the number of messages to purge.", delete_after=5)
+    elif isinstance(error, commands.CheckFailure):
         return  # Handled by cog_check
     else:
-        logger.error(f"Purge error: {error}")
-        await ctx.send(f"Error: {str(error)}", ephemeral=True)
+        print(f"Purge error: {error}")
+        await ctx.send(f"Error: {str(error)}", delete_after=5)
             
 @bot.command()
 async def hello(ctx):
@@ -178,7 +177,6 @@ async def currentautorole(ctx):
 
 @bot.command()
 async def nick(ctx, member: discord.Member, *, nickname: str = None):
-    """Change a member's nickname. Use !nick @member new_nickname or !nick @member to reset."""
     try:
         await ctx.message.delete()  # Delete the command message
         old_nick = member.nick or member.name
