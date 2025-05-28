@@ -97,7 +97,12 @@ async def load_extensions():
         print("Loaded Bot cog")
     except Exception as e:
         print(f"Failed to load Bot cog: {e}")
-        
+    try:
+        await bot.load_extension("cogs.panel")
+        print("Loaded Panel cog")
+    except Exception as e:
+        print(f"Failed to load Panel cog: {e}")
+
 @bot.event
 async def on_member_join(member: discord.Member):
     global auto_role_enabled, role_to_assign
