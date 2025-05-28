@@ -341,7 +341,7 @@ class Support(commands.Cog):
             await log_channel.send(embed=embed)
 
     @commands.command()
-    async def panel(self, ctx: commands.Context):
+    async def ticketpanel(self, ctx: commands.Context):
         try:
             embed = discord.Embed(
                 title="Los Angeles Police Department Support",
