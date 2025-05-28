@@ -102,29 +102,7 @@ class Bot(commands.Cog):
             logger.error(f"Purge error: {error}")
             await ctx.send(f"Error: {str(error)}", ephemeral=True)
 
-    @commands.command(name='sync')
-    @commands.has_permissions(administrator=True)
-    async def sync(self, ctx):
-        logger.info(f"Sync command invoked by {ctx.author}")
-        try:
-            synced = await self.bot.tree.sync(guild=ctx.guild)
-            await ctx.send(f"Synced {len(synced)} command(s) for this server.", ephemeral=True)
-        except Exception as e:
-            logger.error(f"Sync error: {e}")
-            await ctx.send(f"Failed to sync commands: {str(e)}", ephemeral=True)
-
-    @sync.error
-    async def sync_error(self, ctx, error):
-        if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You need 'Administrator' permission.", ephemeral=True)
-        elif isinstance(error, commands.CheckFailure):
-            return  # Handled by cog_check
-        else:
-            logger.error(f"Sync error: {error}")
-            await ctx.send(f"Error: {str(error)}", ephemeral=True)
-
     @commands.command(name='checkperms')
-    @commands.has_permissions(manage_roles=True)
     async def checkperms(self, ctx, member: discord.Member = None):
         logger.info(f"Checkperms command invoked by {ctx.author} for {member or ctx.author}")
         member = member or ctx.author
