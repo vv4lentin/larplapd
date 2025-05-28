@@ -8,17 +8,27 @@ import asyncio
 import sys
 import re
 
-# Set up logging for debugging
+# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('CMD')
 
-class bot(commands.Cog):
+# Define the allowed user ID
+ALLOWED_USER_ID = 1038522974988411000
+
+class Bot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.start_time = time.time()
         self.maintenance_mode = False
         self.shutdown_initiated = False
         logger.info("CMD cog initialized")
+
+    # Helper to check if command is from allowed user
+    async def cog_check(self, ctx):
+        if ctx.author.id != ALLOWED_USER_ID:
+            await ctx.send("This bot can only be used by the designated user.", ephemeral=True)
+            return False
+        return True
 
     # Helper to format uptime
     def format_uptime(self):
@@ -60,16 +70,18 @@ class bot(commands.Cog):
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
             command_name = ctx.message.content.split()[0][len(ctx.prefix):]
-            await ctx.send(f"`{command_name}` is not a command in our bot, please check the command list with `,help`", ephemeral=True)
+            await ctx.send(f"`{command_name}` is not a command. Use `,help` to see available commands.", ephemeral=True)
+        elif isinstance(error, commands.CheckFailure):
+            return  # Handled by cog_check
         else:
             logger.error(f"Command error in {ctx.guild.id if ctx.guild else 'DM'}: {error}")
-            raise error
+            await ctx.send(f"An error occurred: {str(error)}", ephemeral=True)
 
     @commands.command(name='purge')
     @commands.has_permissions(manage_messages=True)
     @commands.bot_has_permissions(manage_messages=True)
     async def purge(self, ctx, amount: int):
-        logger.info(f"Purge command invoked by {ctx.author} in {ctx.guild.id} for {amount} messages")
+        logger.info(f"Purge command invoked by {ctx.author} for {amount} messages")
         if amount < 1 or amount > 100:
             await ctx.send("Please specify a number between 1 and 100.", ephemeral=True)
             return
@@ -78,35 +90,43 @@ class bot(commands.Cog):
 
     @purge.error
     async def purge_error(self, ctx, error):
-        logger.error(f"Purge error in {ctx.guild.id}: {error}")
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You lack the 'Manage Messages' permission.", ephemeral=True)
+            await ctx.send("You need 'Manage Messages' permission.", ephemeral=True)
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send("I lack the 'Manage Messages' permission.", ephemeral=True)
+            await ctx.send("I need 'Manage Messages' permission.", ephemeral=True)
         elif isinstance(error, commands.MissingRequiredArgument):
             await ctx.send("Please specify the number of messages to purge.", ephemeral=True)
+        elif isinstance(error, commands.CheckFailure):
+            return  # Handled by cog_check
+        else:
+            logger.error(f"Purge error: {error}")
+            await ctx.send(f"Error: {str(error)}", ephemeral=True)
 
     @commands.command(name='sync')
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx):
-        logger.info(f"Sync command invoked by {ctx.author} in {ctx.guild.id}")
+        logger.info(f"Sync command invoked by {ctx.author}")
         try:
             synced = await self.bot.tree.sync(guild=ctx.guild)
-            await ctx.send(f"Synced {len(synced)} command(s) for this guild.", ephemeral=True)
+            await ctx.send(f"Synced {len(synced)} command(s) for this server.", ephemeral=True)
         except Exception as e:
-            logger.error(f"Sync error in {ctx.guild.id}: {e}")
+            logger.error(f"Sync error: {e}")
             await ctx.send(f"Failed to sync commands: {str(e)}", ephemeral=True)
 
     @sync.error
     async def sync_error(self, ctx, error):
-        logger.error(f"Sync error in {ctx.guild.id}: {error}")
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You lack the 'Administrator' permission.", ephemeral=True)
+            await ctx.send("You need 'Administrator' permission.", ephemeral=True)
+        elif isinstance(error, commands.CheckFailure):
+            return  # Handled by cog_check
+        else:
+            logger.error(f"Sync error: {error}")
+            await ctx.send(f"Error: {str(error)}", ephemeral=True)
 
     @commands.command(name='checkperms')
     @commands.has_permissions(manage_roles=True)
     async def checkperms(self, ctx, member: discord.Member = None):
-        logger.info(f"Checkperms command invoked by {ctx.author} in {ctx.guild.id} for {member or ctx.author}")
+        logger.info(f"Checkperms command invoked by {ctx.author} for {member or ctx.author}")
         member = member or ctx.author
         perms = member.guild_permissions
         perm_list = [f"{perm} = {value}" for perm, value in perms if value]
@@ -118,11 +138,14 @@ class bot(commands.Cog):
 
     @checkperms.error
     async def checkperms_error(self, ctx, error):
-        logger.error(f"Checkperms error in {ctx.guild.id}: {error}")
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You lack the 'Manage Roles' permission.", ephemeral=True)
+            await ctx.send("You need 'Manage Roles' permission.", ephemeral=True)
+        elif isinstance(error, commands.CheckFailure):
+            return  # Handled by cog_check
+        else:
+            logger.error(f"Checkperms error: {error}")
+            await ctx.send(f"Error: {str(error)}", ephemeral=True)
 
-    # Debugged ActivityModal
     class ActivityModal(discord.ui.Modal, title="Change Bot Activity"):
         def __init__(self, cog):
             super().__init__()
@@ -163,10 +186,12 @@ class bot(commands.Cog):
             self.add_item(self.activity_type)
             self.add_item(self.activity_url)
             self.add_item(self.temporary)
-            logger.info(f"ActivityModal initialized for guild {cog.bot.guilds[0].id if cog.bot.guilds else 'unknown'}")
 
         async def on_submit(self, interaction: discord.Interaction):
-            logger.info(f"ActivityModal submitted by {interaction.user} in {interaction.guild_id}")
+            if interaction.user.id != ALLOWED_USER_ID:
+                await interaction.response.send_message("This feature is only available to the designated user.", ephemeral=True)
+                return
+
             try:
                 activity_type = self.activity_type.values[0]
                 name = self.activity_name.value.strip()
@@ -175,7 +200,6 @@ class bot(commands.Cog):
 
                 if not name:
                     await interaction.response.send_message("Activity name cannot be empty.", ephemeral=True)
-                    logger.warning(f"Empty activity name submitted by {interaction.user} in {interaction.guild_id}")
                     return
 
                 if activity_type == "streaming" and url:
@@ -183,7 +207,6 @@ class bot(commands.Cog):
                     youtube_pattern = r'^https?://(www\.)?youtube\.com/watch\?v=[\w-]+$'
                     if not (re.match(twitch_pattern, url) or re.match(youtube_pattern, url)):
                         await interaction.response.send_message("Streaming URL must be a valid Twitch or YouTube URL.", ephemeral=True)
-                        logger.warning(f"Invalid streaming URL {url} submitted by {interaction.user} in {interaction.guild_id}")
                         return
 
                 activity = None
@@ -198,28 +221,24 @@ class bot(commands.Cog):
 
                 if activity is None:
                     await interaction.response.send_message("Invalid activity type.", ephemeral=True)
-                    logger.error(f"Invalid activity type {activity_type} submitted by {interaction.user} in {interaction.guild_id}")
                     return
 
                 await interaction.client.change_presence(activity=activity)
                 response = f"Bot activity set to: {activity_type.capitalize()} {name}" + (f" ({url})" if url else "") + (" (temporary for 5 min)" if is_temporary else "")
                 await interaction.response.send_message(response, ephemeral=True)
-                logger.info(f"Bot activity changed to: {activity_type} {name} by {interaction.user} in {interaction.guild_id}")
 
                 if is_temporary:
                     await asyncio.sleep(300)
                     await interaction.client.change_presence(activity=None)
-                    logger.info(f"Temporary activity cleared after 5 minutes in {interaction.guild_id}")
 
             except Exception as e:
-                logger.error(f"ActivityModal submission error in {interaction.guild_id}: {e}")
+                logger.error(f"ActivityModal submission error: {e}")
                 await interaction.response.send_message(f"Failed to change activity: {str(e)}", ephemeral=True)
 
         async def on_error(self, interaction: discord.Interaction, error: Exception):
-            logger.error(f"ActivityModal error in {interaction.guild_id}: {error}")
+            logger.error(f"ActivityModal error: {error}")
             await interaction.response.send_message("An error occurred while processing the modal.", ephemeral=True)
 
-    # Debugged ActivityTypeModal
     class ActivityTypeModal(discord.ui.Modal, title="Change Activity Type"):
         def __init__(self, cog, current_activity):
             super().__init__()
@@ -254,10 +273,12 @@ class bot(commands.Cog):
             self.add_item(self.activity_type)
             self.add_item(self.activity_url)
             self.add_item(self.temporary)
-            logger.info(f"ActivityTypeModal initialized for guild {cog.bot.guilds[0].id if cog.bot.guilds else 'unknown'}")
 
         async def on_submit(self, interaction: discord.Interaction):
-            logger.info(f"ActivityTypeModal submitted by {interaction.user} in {interaction.guild_id}")
+            if interaction.user.id != ALLOWED_USER_ID:
+                await interaction.response.send_message("This feature is only available to the designated user.", ephemeral=True)
+                return
+
             try:
                 activity_type = self.activity_type.values[0]
                 name = self.current_activity.name if self.current_activity else "Default"
@@ -269,7 +290,6 @@ class bot(commands.Cog):
                     youtube_pattern = r'^https?://(www\.)?youtube\.com/watch\?v=[\w-]+$'
                     if not (re.match(twitch_pattern, url) or re.match(youtube_pattern, url)):
                         await interaction.response.send_message("Streaming URL must be a valid Twitch or YouTube URL.", ephemeral=True)
-                        logger.warning(f"Invalid streaming URL {url} submitted by {interaction.user} in {interaction.guild_id}")
                         return
 
                 activity = None
@@ -284,25 +304,22 @@ class bot(commands.Cog):
 
                 if activity is None:
                     await interaction.response.send_message("Invalid activity type.", ephemeral=True)
-                    logger.error(f"Invalid activity type {activity_type} submitted by {interaction.user} in {interaction.guild_id}")
                     return
 
                 await interaction.client.change_presence(activity=activity)
                 response = f"Bot activity type changed to: {activity_type.capitalize()} {name}" + (f" ({url})" if url else "") + (" (temporary for 5 min)" if is_temporary else "")
                 await interaction.response.send_message(response, ephemeral=True)
-                logger.info(f"Bot activity type changed to: {activity_type} {name} by {interaction.user} in {interaction.guild_id}")
 
                 if is_temporary:
                     await asyncio.sleep(300)
                     await interaction.client.change_presence(activity=None)
-                    logger.info(f"Temporary activity cleared after 5 minutes in {interaction.guild_id}")
 
             except Exception as e:
-                logger.error(f"ActivityTypeModal submission error in {interaction.guild_id}: {e}")
+                logger.error(f"ActivityTypeModal submission error: {e}")
                 await interaction.response.send_message(f"Failed to change activity type: {str(e)}", ephemeral=True)
 
         async def on_error(self, interaction: discord.Interaction, error: Exception):
-            logger.error(f"ActivityTypeModal error in {interaction.guild_id}: {error}")
+            logger.error(f"ActivityTypeModal error: {error}")
             await interaction.response.send_message("An error occurred while processing the modal.", ephemeral=True)
 
     class AnnouncementModal(discord.ui.Modal, title="Send Announcement"):
@@ -326,7 +343,10 @@ class bot(commands.Cog):
             self.add_item(self.message)
 
         async def on_submit(self, interaction: discord.Interaction):
-            logger.info(f"AnnouncementModal submitted by {interaction.user} in {interaction.guild_id}")
+            if interaction.user.id != ALLOWED_USER_ID:
+                await interaction.response.send_message("This feature is only available to the designated user.", ephemeral=True)
+                return
+
             channel_id = self.channel_id.value
             message = self.message.value
 
@@ -343,7 +363,6 @@ class bot(commands.Cog):
                             except Exception as e:
                                 logger.warning(f"Failed to send announcement to {guild.id}: {e}")
                     await interaction.response.send_message(f"Announcement sent to {sent_count} guild(s).", ephemeral=True)
-                    logger.info(f"Announcement sent to {sent_count} guilds by {interaction.user} in {interaction.guild_id}")
                 else:
                     try:
                         channel = interaction.client.get_channel(int(channel_id))
@@ -355,15 +374,14 @@ class bot(commands.Cog):
                             return
                         await channel.send(message)
                         await interaction.response.send_message(f"Announcement sent to <#{channel_id}>.", ephemeral=True)
-                        logger.info(f"Announcement sent to channel {channel_id} by {interaction.user} in {interaction.guild_id}")
                     except ValueError:
                         await interaction.response.send_message("Channel ID must be a number or 'all'.", ephemeral=True)
             except Exception as e:
-                logger.error(f"Announcement error in {interaction.guild_id}: {e}")
+                logger.error(f"Announcement error: {e}")
                 await interaction.response.send_message(f"Failed to send announcement: {str(e)}", ephemeral=True)
 
         async def on_error(self, interaction: discord.Interaction, error: Exception):
-            logger.error(f"AnnouncementModal error in {interaction.guild_id}: {error}")
+            logger.error(f"AnnouncementModal error: {error}")
             await interaction.response.send_message("An error occurred while processing the modal.", ephemeral=True)
 
     class BotPanelView(discord.ui.View):
@@ -372,34 +390,32 @@ class bot(commands.Cog):
             self.cog = cog
 
         async def interaction_check(self, interaction: discord.Interaction) -> bool:
-            has_perm = interaction.user.guild_permissions.administrator
-            logger.info(f"Interaction check for {interaction.user} in {interaction.guild_id}: has_admin={has_perm}")
-            return has_perm
+            if interaction.user.id != ALLOWED_USER_ID:
+                await interaction.response.send_message("This panel is only available to the designated user.", ephemeral=True)
+                return False
+            return True
 
         @discord.ui.button(label="Change Activity", style=discord.ButtonStyle.primary, emoji="✨", row=0)
         async def change_activity(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Change Activity button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 modal = self.cog.ActivityModal(self.cog)
                 await interaction.response.send_modal(modal)
             except Exception as e:
-                logger.error(f"Change Activity button error in {interaction.guild_id}: {e}")
+                logger.error(f"Change Activity button error: {e}")
                 await interaction.response.send_message("Failed to open activity modal.", ephemeral=True)
 
         @discord.ui.button(label="Change Activity Type", style=discord.ButtonStyle.primary, emoji="🔄", row=0)
         async def change_activity_type(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Change Activity Type button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 current_activity = interaction.client.activity
                 modal = self.cog.ActivityTypeModal(self.cog, current_activity)
                 await interaction.response.send_modal(modal)
             except Exception as e:
-                logger.error(f"Change Activity Type button error in {interaction.guild_id}: {e}")
+                logger.error(f"Change Activity Type button error: {e}")
                 await interaction.response.send_message("Failed to open activity type modal.", ephemeral=True)
 
         @discord.ui.button(label="Restart Activity", style=discord.ButtonStyle.secondary, emoji="🔃", row=0)
         async def restart_activity(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Restart Activity button clicked by {interaction.user} in {interaction.guild_id}")
             current_activity = interaction.client.activity
             if not current_activity:
                 await interaction.response.send_message("No activity is currently set.", ephemeral=True)
@@ -407,72 +423,60 @@ class bot(commands.Cog):
             try:
                 await interaction.client.change_presence(activity=current_activity)
                 await interaction.response.send_message(f"Bot activity restarted: {current_activity.name}", ephemeral=True)
-                logger.info(f"Bot activity restarted by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Restart activity error in {interaction.guild_id}: {e}")
+                logger.error(f"Restart activity error: {e}")
                 await interaction.response.send_message(f"Failed to restart activity: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Stop Activity", style=discord.ButtonStyle.red, emoji="🛑", row=0)
         async def stop_activity(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Stop Activity button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 await interaction.client.change_presence(activity=None)
                 await interaction.response.send_message("Bot activity cleared.", ephemeral=True)
-                logger.info(f"Bot activity cleared by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Stop activity error in {interaction.guild_id}: {e}")
+                logger.error(f"Stop activity error: {e}")
                 await interaction.response.send_message(f"Failed to clear activity: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Set Online", style=discord.ButtonStyle.green, emoji="🟢", row=1)
         async def set_online(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Set Online button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 await interaction.client.change_presence(status=discord.Status.online)
                 await interaction.response.send_message("Bot status set to Online.", ephemeral=True)
-                logger.info(f"Bot status set to Online by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Set online error in {interaction.guild_id}: {e}")
+                logger.error(f"Set online error: {e}")
                 await interaction.response.send_message(f"Failed to set Online status: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Set Idle", style=discord.ButtonStyle.secondary, emoji="🟡", row=1)
         async def set_idle(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Set Idle button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 await interaction.client.change_presence(status=discord.Status.idle)
                 await interaction.response.send_message("Bot status set to Idle.", ephemeral=True)
-                logger.info(f"Bot status set to Idle by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Set idle error in {interaction.guild_id}: {e}")
+                logger.error(f"Set idle error: {e}")
                 await interaction.response.send_message(f"Failed to set Idle status: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Set DND", style=discord.ButtonStyle.danger, emoji="🔴", row=1)
         async def set_dnd(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Set DND button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 await interaction.client.change_presence(status=discord.Status.dnd)
                 await interaction.response.send_message("Bot status set to Do Not Disturb.", ephemeral=True)
-                logger.info(f"Bot status set to DND by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Set DND error in {interaction.guild_id}: {e}")
+                logger.error(f"Set DND error: {e}")
                 await interaction.response.send_message(f"Failed to set DND status: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Toggle Invisible", style=discord.ButtonStyle.grey, emoji="👻", row=1)
         async def toggle_invisible(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Toggle Invisible button clicked by {interaction.user} in {interaction.guild_id}")
             current_status = interaction.client.status
             new_status = discord.Status.invisible if current_status != discord.Status.invisible else discord.Status.online
             try:
                 await interaction.client.change_presence(status=new_status)
                 status_text = "Invisible" if new_status == discord.Status.invisible else "Online"
                 await interaction.response.send_message(f"Bot status set to {status_text}.", ephemeral=True)
-                logger.info(f"Bot status set to {status_text} by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Toggle invisible error in {interaction.guild_id}: {e}")
+                logger.error(f"Toggle invisible error: {e}")
                 await interaction.response.send_message(f"Failed to toggle status: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Toggle Maintenance", style=discord.ButtonStyle.grey, emoji="🛠️", row=2)
         async def toggle_maintenance(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Toggle Maintenance button clicked by {interaction.user} in {interaction.guild_id}")
             self.cog.maintenance_mode = not self.cog.maintenance_mode
             try:
                 if self.cog.maintenance_mode:
@@ -481,34 +485,28 @@ class bot(commands.Cog):
                         activity=discord.Activity(type=discord.ActivityType.watching, name="Under Maintenance")
                     )
                     await interaction.response.send_message("Maintenance mode enabled.", ephemeral=True)
-                    logger.info(f"Maintenance mode enabled by {interaction.user} in {interaction.guild_id}")
                 else:
                     await interaction.client.change_presence(status=discord.Status.online, activity=None)
                     await interaction.response.send_message("Maintenance mode disabled.", ephemeral=True)
-                    logger.info(f"Maintenance mode disabled by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Maintenance toggle error in {interaction.guild_id}: {e}")
+                logger.error(f"Maintenance toggle error: {e}")
                 await interaction.response.send_message(f"Failed to toggle maintenance mode: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Sync Globally", style=discord.ButtonStyle.blurple, emoji="🌐", row=2)
         async def sync_globally(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Sync Globally button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 synced = await interaction.client.tree.sync()
                 await interaction.response.send_message(f"Globally synced {len(synced)} command(s).", ephemeral=True)
-                logger.info(f"Global sync performed by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Global sync error in {interaction.guild_id}: {e}")
+                logger.error(f"Global sync error: {e}")
                 await interaction.response.send_message(f"Failed to sync globally: {str(e)}", ephemeral=True)
 
-        @discord.ui.button(label="Shutdown Bot", style=discord.ButtonStyle.red, emoji="⏹️", row=2, disabled=False)
+        @discord.ui.button(label="Shutdown Bot", style=discord.ButtonStyle.red, emoji="⏹️", row=2)
         async def shutdown_bot(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Shutdown Bot button clicked by {interaction.user} in {interaction.guild_id}")
             if self.cog.shutdown_initiated:
                 await interaction.response.send_message("Shutdown already in progress.", ephemeral=True)
                 return
 
-            # Confirmation view
             confirm_view = discord.ui.View(timeout=30)
             confirm_button = discord.ui.Button(label="Confirm Shutdown", style=discord.ButtonStyle.danger)
             cancel_button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
@@ -517,18 +515,16 @@ class bot(commands.Cog):
                 self.cog.shutdown_initiated = True
                 try:
                     await interaction.response.edit_message(content="Shutting down bot...", view=None)
-                    logger.info(f"Bot shutdown initiated by {interaction.user} in {interaction.guild_id}")
                     await interaction.client.change_presence(status=discord.Status.offline)
                     await interaction.client.close()
                     sys.exit(0)
                 except Exception as e:
                     self.cog.shutdown_initiated = False
-                    logger.error(f"Shutdown error in {interaction.guild_id}: {e}")
+                    logger.error(f"Shutdown error: {e}")
                     await interaction.followup.send(f"Failed to shutdown bot: {str(e)}", ephemeral=True)
 
             async def cancel_callback(interaction: discord.Interaction):
                 await interaction.response.edit_message(content="Shutdown cancelled.", view=None)
-                logger.info(f"Shutdown cancelled by {interaction.user} in {interaction.guild_id}")
 
             confirm_button.callback = confirm_callback
             cancel_button.callback = cancel_callback
@@ -539,17 +535,15 @@ class bot(commands.Cog):
 
         @discord.ui.button(label="Send Announcement", style=discord.ButtonStyle.blurple, emoji="📢", row=2)
         async def send_announcement(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Send Announcement button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 modal = self.cog.AnnouncementModal(self.cog)
                 await interaction.response.send_modal(modal)
             except Exception as e:
-                logger.error(f"Send Announcement error in {interaction.guild_id}: {e}")
+                logger.error(f"Send Announcement error: {e}")
                 await interaction.response.send_message("Failed to open announcement modal.", ephemeral=True)
 
         @discord.ui.button(label="Check Bot Perms", style=discord.ButtonStyle.secondary, emoji="🔍", row=3)
         async def check_bot_perms(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Check Bot Perms button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 bot_member = interaction.guild.me
                 perms = bot_member.guild_permissions
@@ -557,14 +551,12 @@ class bot(commands.Cog):
                 embed = discord.Embed(title=f"Bot Permissions: {interaction.client.user.name}", color=discord.Color.green())
                 embed.add_field(name="Permissions", value="\n".join(perm_list) or "None", inline=False)
                 await interaction.response.send_message(embed=embed, ephemeral=True)
-                logger.info(f"Bot permissions checked by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Check bot perms error in {interaction.guild_id}: {e}")
+                logger.error(f"Check bot perms error: {e}")
                 await interaction.response.send_message(f"Failed to check permissions: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Resource Usage", style=discord.ButtonStyle.secondary, emoji="📊", row=3)
         async def resource_usage(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Resource Usage button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 resources = self.cog.get_system_resources()
                 embed = discord.Embed(title="System Resource Usage", color=discord.Color.blue())
@@ -573,14 +565,12 @@ class bot(commands.Cog):
                 embed.add_field(name="Disk", value=resources['disk'], inline=True)
                 embed.set_footer(text=f"Requested by {interaction.user}")
                 await interaction.response.send_message(embed=embed, ephemeral=True)
-                logger.info(f"Resource usage checked by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Resource usage error in {interaction.guild_id}: {e}")
+                logger.error(f"Resource usage error: {e}")
                 await interaction.response.send_message(f"Failed to check resource usage: {str(e)}", ephemeral=True)
 
         @discord.ui.button(label="Refresh Panel", style=discord.ButtonStyle.green, emoji="🔄", row=3)
         async def refresh_panel(self, interaction: discord.Interaction, button: discord.ui.Button):
-            logger.info(f"Refresh Panel button clicked by {interaction.user} in {interaction.guild_id}")
             try:
                 await interaction.response.defer(ephemeral=True)
                 embed = discord.Embed(
@@ -593,7 +583,7 @@ class bot(commands.Cog):
                     embed.set_thumbnail(url=interaction.client.user.avatar.url if interaction.client.user.avatar else None)
                     embed.set_image(url=interaction.guild.icon.url if interaction.guild.icon else None)
                 except Exception as e:
-                    logger.warning(f"Embed image error in {interaction.guild_id}: {e}")
+                    logger.warning(f"Embed image error: {e}")
                 embed.add_field(name="Bot ID", value=interaction.client.user.id, inline=True)
                 embed.add_field(name="Status", value=str(interaction.client.status).capitalize(), inline=True)
                 embed.add_field(
@@ -606,14 +596,12 @@ class bot(commands.Cog):
                 embed.add_field(name="Uptime", value=self.cog.format_uptime(), inline=True)
                 embed.set_footer(text=f"Requested by {interaction.user}")
                 await interaction.edit_original_response(embed=embed, view=self)
-                logger.info(f"Panel refreshed by {interaction.user} in {interaction.guild_id}")
             except Exception as e:
-                logger.error(f"Refresh panel error in {interaction.guild_id}: {e}")
+                logger.error(f"Refresh panel error: {e}")
                 await interaction.response.send_message(f"Failed to refresh panel: {str(e)}", ephemeral=True)
 
     @commands.command(name='botpanel')
     async def botpanel(self, ctx):
-        logger.info(f"Botpanel command invoked by {ctx.author} in {ctx.guild.id}")
         try:
             view = self.BotPanelView(self)
             embed = discord.Embed(
@@ -626,7 +614,7 @@ class bot(commands.Cog):
                 embed.set_thumbnail(url=self.bot.user.avatar.url if self.bot.user.avatar else None)
                 embed.set_image(url=ctx.guild.icon.url if ctx.guild.icon else None)
             except Exception as e:
-                logger.warning(f"Embed image error in {ctx.guild.id}: {e}")
+                logger.warning(f"Embed image error: {e}")
             embed.add_field(name="Bot ID", value=self.bot.user.id, inline=True)
             embed.add_field(name="Status", value=str(self.bot.status).capitalize(), inline=True)
             embed.add_field(
@@ -639,16 +627,16 @@ class bot(commands.Cog):
             embed.add_field(name="Uptime", value=self.format_uptime(), inline=True)
             embed.set_footer(text=f"Requested by {ctx.author}")
             await ctx.send(embed=embed, view=view, ephemeral=True)
-            logger.info(f"Botpanel sent successfully in {ctx.guild.id}")
         except Exception as e:
-            logger.error(f"Botpanel error in {ctx.guild.id}: {e}")
+            logger.error(f"Botpanel error: {e}")
             await ctx.send(f"Failed to display bot panel: {str(e)}", ephemeral=True)
-            
+
     @botpanel.error
     async def botpanel_error(self, ctx, error):
-        logger.error(f"Botpanel error in {ctx.guild.id}: {error}")
-        if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You lack the 'Administrator' permission.", ephemeral=True)
+        if isinstance(error, commands.CheckFailure):
+            return  # Handled by cog_check
+        logger.error(f"Botpanel error: {error}")
+        await ctx.send(f"Error: {str(error)}", ephemeral=True)
 
 async def setup(bot):
-    await bot.add_cog(bot(bot))
+    await bot.add_cog(Bot(bot))
