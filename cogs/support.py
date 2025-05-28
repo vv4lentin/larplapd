@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 SUPPORT_ROLES = {
-    "general": 1339058176003407915,
+    "general": 1306382245895868476,
     "ia": 1306381893515870209,
     "boc": 1361565373593292851,
     "botdev": 1337050305153470574
