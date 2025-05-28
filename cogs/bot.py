@@ -23,13 +23,6 @@ class Bot(commands.Cog):
         self.shutdown_initiated = False
         logger.info("CMD cog initialized")
 
-    # Helper to check if command is from allowed user
-    async def cog_check(self, ctx):
-        if ctx.author.id != ALLOWED_USER_ID:
-            await ctx.send("This bot can only be used by the designated user.", ephemeral=True)
-            return False
-        return True
-
     # Helper to format uptime
     def format_uptime(self):
         uptime_seconds = int(time.time() - self.start_time)
@@ -76,31 +69,6 @@ class Bot(commands.Cog):
         else:
             logger.error(f"Command error in {ctx.guild.id if ctx.guild else 'DM'}: {error}")
             await ctx.send(f"An error occurred: {str(error)}", ephemeral=True)
-
-    @commands.command(name='purge')
-    @commands.has_permissions(manage_messages=True)
-    @commands.bot_has_permissions(manage_messages=True)
-    async def purge(self, ctx, amount: int):
-        logger.info(f"Purge command invoked by {ctx.author} for {amount} messages")
-        if amount < 1 or amount > 100:
-            await ctx.send("Please specify a number between 1 and 100.", ephemeral=True)
-            return
-        await ctx.channel.purge(limit=amount + 1)
-        await ctx.send(f"Successfully deleted {amount} message(s).", delete_after=5)
-
-    @purge.error
-    async def purge_error(self, ctx, error):
-        if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You need 'Manage Messages' permission.", ephemeral=True)
-        elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send("I need 'Manage Messages' permission.", ephemeral=True)
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("Please specify the number of messages to purge.", ephemeral=True)
-        elif isinstance(error, commands.CheckFailure):
-            return  # Handled by cog_check
-        else:
-            logger.error(f"Purge error: {error}")
-            await ctx.send(f"Error: {str(error)}", ephemeral=True)
 
     @commands.command(name='checkperms')
     async def checkperms(self, ctx, member: discord.Member = None):
