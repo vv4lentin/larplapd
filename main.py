@@ -120,7 +120,9 @@ async def test(ctx):
 
 @bot.command()
 async def dumb(ctx):
-    await ctx.send("Yeah I think we all know that we are talking about <@1320762191661764689>, I ping another time maybe he didn't understand <@1320762191661764689>. Maybe a last time to be sure that he understand that he is the dumbest of the department <@1320762191661764689>. :)")
+    await ctx.send("Yeah I think we all know that we are talking about <@1320762191661764689>")
+    await ctx.send("I ping another time maybe he didn't understand <@1320762191661764689>.")
+    await ctx.send("Maybe a last time to make sure that he understand that he is the dumbest of the department <@1320762191661764689>.")
 
 @bot.command(name='purge')
 @commands.has_permissions(manage_messages=True)
