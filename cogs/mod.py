@@ -41,7 +41,7 @@ class Mod(commands.Cog):
 
     async def send_owner_protection_alert(self, ctx: commands.Context):
         """Send alert when attempting to punish the bot's owner."""
-        await ctx.send("Sorry, but I can’t punish this user as he is my official owner.")
+        await ctx.send("Sorry, but I can’t punish this user as he is my discord owner or as he/she is a member of the Foundership.")
         log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
             embed = discord.Embed(
