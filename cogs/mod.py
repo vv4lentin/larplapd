@@ -5,7 +5,7 @@ import re
 
 # Role and Channel IDs
 MOD_PERMS_ROLE_ID = 1361565373593292851  # Role ID for permission to use mod commands
-LOG_CHANNEL_ID = 1325937069377196042     # Channel ID for unauthorized access logs
+LOG_CHANNEL_ID = 1377974406277501021     # Channel ID for unauthorized access logs
 ALERT_ROLE_ID = 1337050305153470574      # Role to ping for unauthorized access
 OWNER_USER_ID = 1038522974988411000      # User ID of the bot's official owner
 
