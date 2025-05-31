@@ -222,7 +222,7 @@ async def main():
     await load_extensions()
     keep_alive()  # Ensure this function is properly defined in keep_alive.py
     try:
-        await bot.start(os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.G2kgr1.ePnxWc42wSjctEYIK5fiz5FxdC3oGkOHNoKEws")
+        await bot.start(os.getenv("BOT_TOKEN") or ("MTM3NTk3NzI4Mjg1MzY3MTExMw.Gqv8z9.hU5t0ohSBv0wK3FoNvhNMPrdZmq_Lz-BeAmKV4")
     except Exception as e:
         print(f"Failed to start bot: {e}")
 
