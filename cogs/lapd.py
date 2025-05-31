@@ -56,7 +56,7 @@ class WarrantModal(discord.ui.Modal, title="Log a Warrant"):
         embed.add_field(name="Crimes", value=self.crimes.value, inline=False)
         embed.add_field(name="Wanted Level", value=self.dangerousitylevel.value, inline=False)
         embed.add_field(name="Warrant ID", value=self.warrantid.value, inline=False)
-        ping_message = f"<@&testingtesting>"
+        ping_message = f"<@&{PING_ROLE_ID}>"
         await interaction.response.send_message(content=ping_message, embed=embed)
 
 class WarrantButton(discord.ui.View):
