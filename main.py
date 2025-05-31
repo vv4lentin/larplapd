@@ -24,6 +24,34 @@ role_to_assign = None
 # Track bot uptime
 bot.uptime = datetime.utcnow()
 
+def load_banned_users():
+    ban_file = "banned_users.json"
+    if os.path.exists(ban_file):
+        try:
+            with open(ban_file, 'r') as f:
+                content = f.read().strip()
+                if not content:
+                    return {}
+                return json.loads(content)
+        except json.JSONDecodeError:
+            print(f"Warning: {ban_file} contains invalid JSON. Initializing with empty dictionary.")
+            return {}
+    return {}
+
+# Global check to block banned users from using any command
+@bot.check
+async def globally_block_banned_users(ctx):
+    banned_users = load_banned_users()
+    if str(ctx.author.id) in banned_users:
+        embed = discord.Embed(
+            title="Command Access Denied",
+            description="You are banned from using bot commands.",
+            color=discord.Color.red()
+        )
+        await ctx.send(embed=embed)
+        return False
+    return True
+
 @bot.command()
 async def say(ctx, *, message: str):
     try:
