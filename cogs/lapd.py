@@ -12,37 +12,37 @@ ALERT_ROLE_ID = 1337050305153470574  # Role to ping for unauthorized access
 class WarrantModal(discord.ui.Modal, title="Log a Warrant"):
     def __init__(self):
         super().__init__()
-        self.suspect = discord.ui.TextInput(
-            label="Suspect",
-            placeholder="Enter suspect(s) name",
+        self.suspectusername = discord.ui.TextInput(
+            label="Suspect Username",
+            placeholder="Enter suspect(s) username(s)",
             required=True
         )
-        self.description = discord.ui.TextInput(
-            label="Description",
-            placeholder="Enter suspect description",
+        self.physicaldescription = discord.ui.TextInput(
+            label="Physical Description",
+            placeholder="Enter suspect's physical description",
             required=True,
             style=discord.TextStyle.paragraph
         )
         self.crimes = discord.ui.TextInput(
             label="Crimes",
-            placeholder="List the crimes",
+            placeholder="List the crimes that the suspect(s) have commited.",
             required=True
         )
-        self.head_of_case = discord.ui.TextInput(
-            label="Head of Case",
-            placeholder="Enter head officer name and callsign",
+        self.dangerousitylevel = discord.ui.TextInput(
+            label="Dangerousity Level (1-10)",
+            placeholder="Enter the dangerousity level of the suspect(s)",
             required=True
         )
-        self.case_number = discord.ui.TextInput(
-            label="Case Number",
-            placeholder="Enter case number",
+        self.warrantid = discord.ui.TextInput(
+            label="Warrant ID",
+            placeholder="Enter warrant ID",
             required=True
         )
-        self.add_item(self.suspect)
-        self.add_item(self.description)
+        self.add_item(self.suspectusername)
+        self.add_item(self.physicaldescription)
         self.add_item(self.crimes)
-        self.add_item(self.head_of_case)
-        self.add_item(self.case_number)
+        self.add_item(self.dangerousitylevel)
+        self.add_item(self.warrantid)
 
     async def on_submit(self, interaction: Interaction):
         embed = discord.Embed(
@@ -51,12 +51,12 @@ class WarrantModal(discord.ui.Modal, title="Log a Warrant"):
             color=discord.Color.red(),
             timestamp=datetime.now()
         )
-        embed.add_field(name="Suspect", value=self.suspect.value, inline=False)
-        embed.add_field(name="Description", value=self.description.value, inline=False)
+        embed.add_field(name="Suspect Username", value=self.suspectusername.value, inline=False)
+        embed.add_field(name="Physical Description", value=self.physicaldescription.value, inline=False)
         embed.add_field(name="Crimes", value=self.crimes.value, inline=False)
-        embed.add_field(name="Head of Case", value=self.head_of_case.value, inline=False)
-        embed.add_field(name="Case Number", value=self.case_number.value, inline=False)
-        ping_message = f"<@&{PING_ROLE_ID}>"
+        embed.add_field(name="Dangerousity Level", value=self.dangerousitylevel.value, inline=False)
+        embed.add_field(name="Warrant ID", value=self.warrantid.value, inline=False)
+        ping_message = f"<@&testingtesting>"
         await interaction.response.send_message(content=ping_message, embed=embed)
 
 class WarrantButton(discord.ui.View):
