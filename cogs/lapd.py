@@ -19,23 +19,23 @@ class WarrantModal(discord.ui.Modal, title="Log a Warrant"):
         )
         self.physicaldescription = discord.ui.TextInput(
             label="Physical Description",
-            placeholder="Enter suspect's physical description",
+            placeholder="Enter suspect's physical description (ex. Brown hair)",
             required=True,
             style=discord.TextStyle.paragraph
         )
         self.crimes = discord.ui.TextInput(
             label="Crimes",
-            placeholder="List the crimes that the suspect(s) have commited.",
+            placeholder="List the crimes that the suspect(s) have commited. (ex. Bank robbery)",
             required=True
         )
         self.dangerousitylevel = discord.ui.TextInput(
-            label="Dangerousity Level (1-10)",
-            placeholder="Enter the dangerousity level of the suspect(s)",
+            label="Wanted Level (1-10)",
+            placeholder="Enter the wanted level of the suspect(s) (ex. 5)",
             required=True
         )
         self.warrantid = discord.ui.TextInput(
             label="Warrant ID",
-            placeholder="Enter warrant ID",
+            placeholder="Enter warrant ID (ex. Warrant 04)",
             required=True
         )
         self.add_item(self.suspectusername)
@@ -47,14 +47,14 @@ class WarrantModal(discord.ui.Modal, title="Log a Warrant"):
     async def on_submit(self, interaction: Interaction):
         embed = discord.Embed(
             title="🚨 New Warrant 🚨",
-            description="A new warrant has just been issued.",
+            description="A new warrant has just been issued. Please send a picture of the suspect(s) if you have one.",
             color=discord.Color.red(),
             timestamp=datetime.now()
         )
         embed.add_field(name="Suspect Username", value=self.suspectusername.value, inline=False)
         embed.add_field(name="Physical Description", value=self.physicaldescription.value, inline=False)
         embed.add_field(name="Crimes", value=self.crimes.value, inline=False)
-        embed.add_field(name="Dangerousity Level", value=self.dangerousitylevel.value, inline=False)
+        embed.add_field(name="Wanted Level", value=self.dangerousitylevel.value, inline=False)
         embed.add_field(name="Warrant ID", value=self.warrantid.value, inline=False)
         ping_message = f"<@&testingtesting>"
         await interaction.response.send_message(content=ping_message, embed=embed)
