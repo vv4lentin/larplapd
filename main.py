@@ -130,6 +130,12 @@ async def load_extensions():
         print("Loaded Panel cog")
     except Exception as e:
         print(f"Failed to load Panel cog: {e}")
+    try:
+        await bot.load_extension("cogs.commandsban")
+        print("Loaded Command bans cog")
+    except Exception as e:
+        print(f"Failed to load COMMAND BANS cog: {e}")
+        
 
 @bot.event
 async def on_member_join(member: discord.Member):
