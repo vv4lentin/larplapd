@@ -4,7 +4,7 @@ from discord import app_commands, ButtonStyle, Interaction
 from datetime import datetime
 
 # Role and Channel IDs
-PERMS_ROLE_ID = [1376656549623234611, 1306387524494561370]  # Role ID for permission to use !warrant
+PERMS_ROLE_ID = 1376656549623234611# Role ID for permission to use !warrant
 PING_ROLE_ID = 1292541838904791040   # Role ID to ping when warrant is logged
 LOG_CHANNEL_ID = 1377974406277501021  # Channel ID for unauthorized access logs
 ALERT_ROLE_ID = 1337050305153470574  # Role to ping for unauthorized access
