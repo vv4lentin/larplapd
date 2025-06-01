@@ -83,7 +83,7 @@ async def load_extensions():
         "cogs.lapd",
         "cogs.bot",
         "cogs.panel",
-        "cogs.commandsban",
+        "cogs.swatmanage",
     ]
     for ext in extensions:
         try:
