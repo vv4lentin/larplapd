@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import re
 
 # Role and Channel IDs
-MOD_PERMS_ROLE_ID = [1361565373593292851, 1306387524494561370]  # Role ID for permission to use mod commands
+MOD_PERMS_ROLE_ID = 1361565373593292851 # Role ID for permission to use mod commands
 LOG_CHANNEL_ID = 1377974406277501021     # Channel ID for unauthorized access logs
 ALERT_ROLE_ID = 1337050305153470574      # Role to ping for unauthorized access
 OWNER_USER_ID = [1038522974988411000, 792827523858694144, 792547313716690965]     # User ID of the bot's official owner
