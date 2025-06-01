@@ -10,10 +10,17 @@ class CommandsBan(commands.Cog):
         self.banned_users = self.load_banned_users()
 
     def load_banned_users(self):
-        """Load banned users from the JSON file."""
+        """Load banned users from the JSON file, handling empty or missing files."""
         if os.path.exists(self.ban_file):
-            with open(self.ban_file, 'r') as f:
-                return json.load(f)
+            try:
+                with open(self.ban_file, 'r') as f:
+                    content = f.read().strip()
+                    if not content:
+                        return {}
+                    return json.load(f)
+            except json.JSONDecodeError:
+                print(f"Warning: {self.ban_file} contains invalid JSON. Initializing with empty dictionary.")
+                return {}
         return {}
 
     def save_banned_users(self):
@@ -43,7 +50,7 @@ class CommandsBan(commands.Cog):
         """Base command for command ban management."""
         embed = discord.Embed(
             title="Commands Ban Help",
-            description="Available subcommands: `gban`, `ungban`",
+            description="Available subcommands: `gban`, `ungban`, `list`, `status`",
             color=discord.Color.blue()
         )
         await ctx.send(embed=embed)
@@ -120,13 +127,67 @@ class CommandsBan(commands.Cog):
         embed.set_thumbnail(url=user.avatar.url if user.avatar else discord.Embed.Empty)
         await ctx.send(embed=embed)
 
+    @cmd.command(name="list")
+    @commands.has_permissions(administrator=True)
+    async def list_banned(self, ctx):
+        """List all users banned from using bot commands."""
+        if not self.banned_users:
+            embed = discord.Embed(
+                title="Banned Users List",
+                description="No users are currently banned from using bot commands.",
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title="Users Banned from Using Bot Commands",
+            description="Here is the list of all the users who got banned from using the bot commands",
+            color=discord.Color.blue()
+        )
+        for user_id, data in self.banned_users.items():
+            embed.add_field(
+                name=f"{data['username']} : {user_id}",
+                value=f"Reason: {data['reason']} | Admin: {data['banned_by']}",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
+
+    @cmd.command(name="status")
+    @commands.has_permissions(administrator=True)
+    async def status(self, ctx, user: discord.User):
+        """Check the command ban status of a user."""
+        user_id = str(user.id)
+        is_banned = user_id in self.banned_users
+
+        embed = discord.Embed(
+            title="User Status (Commands Bans)",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Username", value=user.name, inline=False)
+        embed.add_field(name="User ID", value=user.id, inline=False)
+        embed.add_field(name="Banned?", value="Yes" if is_banned else "No", inline=False)
+        embed.add_field(
+            name="Reason",
+            value=self.banned_users[user_id]["reason"] if is_banned else "N/A",
+            inline=False
+        )
+        embed.add_field(
+            name="Moderator",
+            value=self.banned_users[user_id]["banned_by"] if is_banned else "N/A",
+            inline=False
+        )
+        embed.set_thumbnail(url=user.avatar.url if user.avatar else discord.Embed.Empty)
+        await ctx.send(embed=embed)
+
     async def cog_command_error(self, ctx, error):
         """Handle errors for the commands in this cog."""
         embed = discord.Embed(title="Command Error", color=discord.Color.red())
         if isinstance(error, commands.MissingPermissions):
             embed.description = "You need administrator permissions to use this command."
         elif isinstance(error, commands.MissingRequiredArgument):
-            embed.description = "Missing required arguments. Usage: ,cmd gban <user> <reason> or ,cmd ungban <user>"
+            embed.description = "Missing required arguments. Usage: ,cmd gban <user> <reason>, ,cmd ungban <user>, or ,cmd status <user>"
         else:
             embed.description = f"An error occurred: {str(error)}"
         await ctx.send(embed=embed)
