@@ -73,7 +73,7 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to sync commands to guild: {e}")
 
-async def load_extensions():More actions
+async def load_extensions():
     try:
         await bot.load_extension("cogs.jishaku")
         print("Loaded Jishaku cog")
