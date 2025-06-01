@@ -73,24 +73,47 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to sync commands to guild: {e}")
 
-async def load_extensions():
-    extensions = [
-        "cogs.jishaku",
-        "cogs.lapdmanage",
-        "cogs.trainingevents",
-        "cogs.support",
-        "cogs.mod",
-        "cogs.lapd",
-        "cogs.bot",
-        "cogs.panel",
-        "cogs.swatmanage",
-    ]
-    for ext in extensions:
-        try:
-            await bot.load_extension(ext)
-            print(f"Loaded {ext} cog")
-        except Exception as e:
-            print(f"Failed to load {ext} cog: {e}")
+async def load_extensions():More actions
+    try:
+        await bot.load_extension("cogs.jishaku")
+        print("Loaded Jishaku cog")
+    except Exception as e:
+        print(f"Failed to load Jishaku cog: {e}")
+    try:
+        await bot.load_extension("cogs.lapdmanage")
+        print("Loaded LAPD Manage cog")
+    except Exception as e:
+        print(f"Failed to load LAPD Manage cog: {e}")
+    try:
+        await bot.load_extension("cogs.trainingevents")
+        print("Loaded Training and Events cog")
+    except Exception as e:
+        print(f"Failed to load Training and Events cog: {e}")
+    try:
+        await bot.load_extension("cogs.support")
+        print("Loaded Support cog")
+    except Exception as e:
+        print(f"Failed to load Support cog: {e}")
+    try:
+        await bot.load_extension("cogs.mod")
+        print("Loaded Mod cog")
+    except Exception as e:
+        print(f"Failed to load Mod cog: {e}")
+    try:
+        await bot.load_extension("cogs.lapd")
+        print("Loaded LAPD cog")
+    except Exception as e:
+        print(f"Failed to load LAPD cog: {e}")
+    try:
+        await bot.load_extension("cogs.bot")
+        print("Loaded Bot cog")
+    except Exception as e:
+        print(f"Failed to load Bot cog: {e}")
+    try:
+        await bot.load_extension("cogs.swatmanage")
+        print("Loaded SWAT Manage cog")
+    except Exception as e:
+        print(f"Failed to load SWAT Manage cog: {e}")
 
 @bot.event
 async def on_member_join(member: discord.Member):
