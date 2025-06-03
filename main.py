@@ -3,7 +3,8 @@ from discord.ext import commands
 from datetime import datetime
 import os
 import asyncio
-import json  # Added missing import for JSON handling
+import json
+
 from keep_alive import keep_alive  # Assuming this is a custom module for keeping the bot alive
 
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
@@ -14,6 +15,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
+intents.presences = True  # Presence intent for status changes
 
 # Initialize bot with command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -21,9 +23,27 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Initialize global variables
 auto_role_enabled = False
 role_to_assign = None
+sleep_mode = False  # Added global flag for sleep mode
 
 # Track bot uptime
 bot.uptime = datetime.utcnow()
+
+# Global check to block commands when in sleep mode
+@bot.check
+async def block_commands_in_sleep_mode(ctx):
+    if not sleep_mode:
+        return True  # Allow commands if not in sleep mode
+    if ctx.command.name == "start" and await bot.is_owner(ctx.author):
+        return True  # Allow !start for bot owner even in sleep mode
+    # Create embed for sleep mode response
+    embed = discord.Embed(
+        title="Bot is in sleep mode.",
+        description="Bot is in sleep mode, all commands are unavailable, please contact the bot developer so he can start it.",
+        color=discord.Color.red()
+    )
+    embed.set_footer(text=f"Command used: {ctx.command.name} | User ID: {ctx.author.id}")
+    await ctx.send(embed=embed)
+    return False  # Block all other commands
 
 @bot.command()
 async def say(ctx, *, message: str):
@@ -164,7 +184,7 @@ async def purge_error(ctx, error):
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send("Please specify the number of messages to purge.", delete_after=5)
     elif isinstance(error, commands.CheckFailure):
-        return  # Handled by globally_block_banned_users
+        return  # Handled by globally_block_banned_users or sleep mode check
     else:
         print(f"Purge error: {error}")
         await ctx.send(f"Error: {str(error)}", delete_after=5)
@@ -213,11 +233,45 @@ async def nick(ctx, member: discord.Member, *, nickname: str = None):
     except discord.HTTPException as e:
         await ctx.send(f"❌ Failed to change nickname: {e}", delete_after=5)
 
+@bot.command()
+@commands.is_owner()  # Restricts command to bot owner
+async def stop(ctx):
+    """Puts the bot in sleep mode."""
+    global sleep_mode
+    try:
+        # Set activity to "Waiting for developers to start me.." and status to idle
+        activity = discord.Activity(
+            type=discord.ActivityType.playing,
+            name="Waiting for developers to start me.."
+        )
+        await bot.change_presence(status=discord.Status.idle, activity=activity)
+        sleep_mode = True  # Enable sleep mode
+        await ctx.send("Bot is now in sleep mode.")
+    except Exception as e:
+        await ctx.send(f"Error setting sleep mode: {e}")
+
+@bot.command()
+@commands.is_owner()  # Restricts command to bot owner
+async def start(ctx):
+    """Activates the bot."""
+    global sleep_mode
+    try:
+        # Set activity to "Watching Los Angeles Police Department" and status to DND
+        activity = discord.Activity(
+            type=discord.ActivityType.watching,
+            name="Los Angeles Police Department"
+        )
+        await bot.change_presence(status=discord.Status.dnd, activity=activity)
+        sleep_mode = False  # Disable sleep mode
+        await ctx.send("Bot is now active.")
+    except Exception as e:
+        await ctx.send(f"Error activating bot: {e}")
+
 async def main():
     await load_extensions()
     keep_alive()  # Ensure this function is properly defined in keep_alive.py
     try:
-        await bot.start(os.getenv("BOT_TOKEN") or ("MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA"))
+        await bot.start(os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA")
     except Exception as e:
         print(f"Failed to start bot: {e}")
 
