@@ -23,7 +23,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Initialize global variables
 auto_role_enabled = False
 role_to_assign = None
-sleep_mode = False  # Added global flag for sleep mode
+sleep_mode = False  # Global flag for sleep mode
 
 # Track bot uptime
 bot.uptime = datetime.utcnow()
@@ -34,7 +34,7 @@ async def block_commands_in_sleep_mode(ctx):
     if not sleep_mode:
         return True  # Allow commands if not in sleep mode
     if ctx.command.name == "start" and await bot.is_owner(ctx.author):
-        return True  # Allow !start for bot owner even in sleep mode
+        return True  # Allow !start for bot owner
     # Create embed for sleep mode response
     embed = discord.Embed(
         title="Bot is in sleep mode.",
@@ -246,7 +246,15 @@ async def stop(ctx):
         )
         await bot.change_presence(status=discord.Status.idle, activity=activity)
         sleep_mode = True  # Enable sleep mode
-        await ctx.send("Bot is now in sleep mode.")
+        # Upgraded embed with timestamp
+        embed = discord.Embed(
+            title="Bot Entering Sleep Mode",
+            description="The bot is now in sleep mode. All commands are disabled until reactivated.",
+            color=discord.Color.red(),
+            timestamp=datetime.utcnow()  # Added timestamp
+        )
+        embed.set_footer(text=f"Command used: stop | User ID: {ctx.author.id}")
+        await ctx.send(embed=embed)
     except Exception as e:
         await ctx.send(f"Error setting sleep mode: {e}")
 
@@ -263,7 +271,15 @@ async def start(ctx):
         )
         await bot.change_presence(status=discord.Status.dnd, activity=activity)
         sleep_mode = False  # Disable sleep mode
-        await ctx.send("Bot is now active.")
+        # Upgraded embed with timestamp
+        embed = discord.Embed(
+            title="Bot Activated",
+            description="The bot is now active and all commands are available.",
+            color=discord.Color.green(),
+            timestamp=datetime.utcnow()  # Added timestamp
+        )
+        embed.set_footer(text=f"Command used: start | User ID: {ctx.author.id}")
+        await ctx.send(embed=embed)
     except Exception as e:
         await ctx.send(f"Error activating bot: {e}")
 
