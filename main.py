@@ -134,6 +134,11 @@ async def load_extensions():
         print("Loaded SWAT Manage cog")
     except Exception as e:
         print(f"Failed to load SWAT Manage cog: {e}")
+    try:
+        await bot.load_extension("cogs.embedbuilder")
+        print("Loaded Embed Builder cog")
+    except Exception as e:
+        print(f"Failed to load Embed Builder cog: {e}")
 
 @bot.event
 async def on_member_join(member: discord.Member):
@@ -246,12 +251,19 @@ async def stop(ctx):
         )
         await bot.change_presence(status=discord.Status.idle, activity=activity)
         sleep_mode = True  # Enable sleep mode
-        # Upgraded embed with timestamp
+        # Upgraded embed with timestamp and command list
         embed = discord.Embed(
             title="Bot Entering Sleep Mode",
             description="The bot is now in sleep mode. All commands are disabled until reactivated.",
             color=discord.Color.red(),
-            timestamp=datetime.utcnow()  # Added timestamp
+            timestamp=datetime.utcnow()
+        )
+        # List all commands except !start (available to owner)
+        commands_list = [f"!{cmd.name}" for cmd in bot.commands if cmd.name != "start"]
+        embed.add_field(
+            name="Disabled Commands",
+            value=", ".join(commands_list) + "\n*Note: !start remains available to the bot owner.*",
+            inline=False
         )
         embed.set_footer(text=f"Command used: stop | User ID: {ctx.author.id}")
         await ctx.send(embed=embed)
@@ -271,12 +283,19 @@ async def start(ctx):
         )
         await bot.change_presence(status=discord.Status.dnd, activity=activity)
         sleep_mode = False  # Disable sleep mode
-        # Upgraded embed with timestamp
+        # Upgraded embed with timestamp and command list
         embed = discord.Embed(
             title="Bot Activated",
             description="The bot is now active and all commands are available.",
             color=discord.Color.green(),
-            timestamp=datetime.utcnow()  # Added timestamp
+            timestamp=datetime.utcnow()
+        )
+        # List all commands
+        commands_list = [f"!{cmd.name}" for cmd in bot.commands]
+        embed.add_field(
+            name="Enabled Commands",
+            value=", ".join(commands_list),
+            inline=False
         )
         embed.set_footer(text=f"Command used: start | User ID: {ctx.author.id}")
         await ctx.send(embed=embed)
