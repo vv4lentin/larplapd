@@ -118,8 +118,8 @@ class EmbedBuilder(commands.Cog):
             )
 
     class EmbedButton(discord.ui.View):
-        def __init__(self, default_color, default_thumbnail):
-            super().__init__(timeout=self.view_timeout)
+        def __init__(self, default_color, default_thumbnail, view_timeout):
+            super().__init__(timeout=view_timeout)  # Pass view_timeout to View
             self.default_color = default_color
             self.default_thumbnail = default_thumbnail
 
@@ -135,19 +135,19 @@ class EmbedBuilder(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.user)
     async def embed_command(self, ctx: commands.Context):
         """Sends a button to create a custom embed via a modal."""
-        view = self.EmbedButton(self.default_color, self.default_thumbnail)
+        view = self.EmbedButton(self.default_color, self.default_thumbnail, self.view_timeout)
         await ctx.send("Click the button to create a custom embed!", view=view)
 
     @embed_command.error
     async def embed_command_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You need `send_messages` and `embed_links` permissions to use this command.", ephemeral=True)
+            await ctx.send("You need `send_messages` and `embed_links` permissions to use this command.")
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send("I need `send_messages` and `embed_links` permissions to execute this command.", ephemeral=True)
+            await ctx.send("I need `send_messages` and `embed_links` permissions to execute this command.")
         elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"This command is on cooldown. Try again in {error.retry_after:.1f} seconds.", ephemeral=True)
+            await ctx.send(f"This command is on cooldown. Try again in {error.retry_after:.1f} seconds.")
         else:
-            await ctx.send("An error occurred while executing the command.", ephemeral=True)
+            await ctx.send("An error occurred while executing the command.")
 
 async def setup(bot):
     await bot.add_cog(EmbedBuilder(bot))
