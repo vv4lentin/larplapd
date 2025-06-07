@@ -24,6 +24,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 auto_role_enabled = False
 role_to_assign = None
 sleep_mode = False  # Global flag for sleep mode
+loaded_cogs = []  # Added to track successfully loaded cogs
 
 # Track bot uptime
 bot.uptime = datetime.utcnow()
@@ -94,51 +95,25 @@ async def on_ready():
         print(f"Failed to sync commands to guild: {e}")
 
 async def load_extensions():
-    try:
-        await bot.load_extension("cogs.jishaku")
-        print("Loaded Jishaku cog")
-    except Exception as e:
-        print(f"Failed to load Jishaku cog: {e}")
-    try:
-        await bot.load_extension("cogs.lapdmanage")
-        print("Loaded LAPD Manage cog")
-    except Exception as e:
-        print(f"Failed to load LAPD Manage cog: {e}")
-    try:
-        await bot.load_extension("cogs.trainingevents")
-        print("Loaded Training and Events cog")
-    except Exception as e:
-        print(f"Failed to load Training and Events cog: {e}")
-    try:
-        await bot.load_extension("cogs.support")
-        print("Loaded Support cog")
-    except Exception as e:
-        print(f"Failed to load Support cog: {e}")
-    try:
-        await bot.load_extension("cogs.mod")
-        print("Loaded Mod cog")
-    except Exception as e:
-        print(f"Failed to load Mod cog: {e}")
-    try:
-        await bot.load_extension("cogs.lapd")
-        print("Loaded LAPD cog")
-    except Exception as e:
-        print(f"Failed to load LAPD cog: {e}")
-    try:
-        await bot.load_extension("cogs.bot")
-        print("Loaded Bot cog")
-    except Exception as e:
-        print(f"Failed to load Bot cog: {e}")
-    try:
-        await bot.load_extension("cogs.swatmanage")
-        print("Loaded SWAT Manage cog")
-    except Exception as e:
-        print(f"Failed to load SWAT Manage cog: {e}")
-    try:
-        await bot.load_extension("cogs.embedbuilder")
-        print("Loaded Embed Builder cog")
-    except Exception as e:
-        print(f"Failed to load Embed Builder cog: {e}")
+    global loaded_cogs  # Added to modify global list
+    cogs = [
+        "cogs.jishaku",
+        "cogs.lapdmanage",
+        "cogs.trainingevents",
+        "cogs.support",
+        "cogs.mod",
+        "cogs.lapd",
+        "cogs.bot",
+        "cogs.swatmanage",
+        "cogs.embedbuilder"
+    ]
+    for cog in cogs:
+        try:
+            await bot.load_extension(cog)
+            print(f"Loaded {cog} cog")
+            loaded_cogs.append(cog.split(".")[-1])  # Add cog name to loaded_cogs (e.g., "jishaku")
+        except Exception as e:
+            print(f"Failed to load {cog} cog: {e}")
 
 @bot.event
 async def on_member_join(member: discord.Member):
@@ -251,18 +226,18 @@ async def stop(ctx):
         )
         await bot.change_presence(status=discord.Status.idle, activity=activity)
         sleep_mode = True  # Enable sleep mode
-        # Upgraded embed with timestamp and command list
+        # Upgraded embed with timestamp and cog list
         embed = discord.Embed(
             title="Bot Entering Sleep Mode",
             description="The bot is now in sleep mode. All commands are disabled until reactivated.",
             color=discord.Color.red(),
             timestamp=datetime.utcnow()
         )
-        # List all commands except !start (available to owner)
-        commands_list = [f"!{cmd.name}" for cmd in bot.commands if cmd.name != "start"]
+        # List all loaded cogs
+        cogs_list = loaded_cogs if loaded_cogs else ["None"]
         embed.add_field(
-            name="Disabled Commands",
-            value=", ".join(commands_list) + "\n*Note: !start remains available to the bot owner.*",
+            name="Disabled Cogs",
+            value=", ".join(cogs_list),
             inline=False
         )
         embed.set_footer(text=f"Command used: stop | User ID: {ctx.author.id}")
@@ -283,18 +258,18 @@ async def start(ctx):
         )
         await bot.change_presence(status=discord.Status.dnd, activity=activity)
         sleep_mode = False  # Disable sleep mode
-        # Upgraded embed with timestamp and command list
+        # Upgraded embed with timestamp and cog list
         embed = discord.Embed(
             title="Bot Activated",
             description="The bot is now active and all commands are available.",
             color=discord.Color.green(),
             timestamp=datetime.utcnow()
         )
-        # List all commands
-        commands_list = [f"!{cmd.name}" for cmd in bot.commands]
+        # List all loaded cogs
+        cogs_list = loaded_cogs if loaded_cogs else ["None"]
         embed.add_field(
-            name="Enabled Commands",
-            value=", ".join(commands_list),
+            name="Enabled Cogs",
+            value=", ".join(cogs_list),
             inline=False
         )
         embed.set_footer(text=f"Command used: start | User ID: {ctx.author.id}")
