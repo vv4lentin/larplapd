@@ -105,7 +105,8 @@ async def load_extensions():
         "cogs.lapd",
         "cogs.bot",
         "cogs.swatmanage",
-        "cogs.embedbuilder"
+        "cogs.embedbuilder",
+        "cogs.panel"
     ]
     for cog in cogs:
         try:
