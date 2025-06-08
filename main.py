@@ -4,11 +4,25 @@ from datetime import datetime
 import os
 import asyncio
 import json
-
 from keep_alive import keep_alive  # Assuming this is a custom module for keeping the bot alive
 
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
+
+# Function to load banned users (shared with the Cog)
+def load_banned_users():
+    ban_file = "banned_users.json"
+    if os.path.exists(ban_file):
+        try:
+            with open(ban_file, 'r') as f:
+                content = f.read().strip()
+                if not content:
+                    return {}
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"Warning: {ban_file} contains invalid JSON. Initializing with empty dictionary.")
+            return {}
+    return {}
 
 # Configure bot intents
 intents = discord.Intents.default()
@@ -16,6 +30,20 @@ intents.message_content = True
 intents.guilds = True
 intents.members = True
 intents.presences = True  # Presence intent for status changes
+
+# Global check to block banned users
+@bot.check
+async def globally_block_banned_users(ctx):
+    banned_users = load_banned_users()
+    if str(ctx.author.id) in banned_users:
+        embed = discord.Embed(
+            title="Command Access Denied",
+            description="You are banned from using bot commands.",
+            color=discord.Color.red()
+        )
+        await ctx.send(embed=embed)
+        return False
+    return True
 
 # Initialize bot with command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
