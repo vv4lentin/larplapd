@@ -31,6 +31,18 @@ intents.guilds = True
 intents.members = True
 intents.presences = True  # Presence intent for status changes
 
+# Initialize bot with command prefix and intents
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# Initialize global variables
+auto_role_enabled = False
+role_to_assign = None
+sleep_mode = False  # Global flag for sleep mode
+loaded_cogs = []  # Added to track successfully loaded cogs
+
+# Track bot uptime
+bot.uptime = datetime.utcnow()
+
 # Global check to block banned users
 @bot.check
 async def globally_block_banned_users(ctx):
@@ -44,18 +56,6 @@ async def globally_block_banned_users(ctx):
         await ctx.send(embed=embed)
         return False
     return True
-
-# Initialize bot with command prefix and intents
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-# Initialize global variables
-auto_role_enabled = False
-role_to_assign = None
-sleep_mode = False  # Global flag for sleep mode
-loaded_cogs = []  # Added to track successfully loaded cogs
-
-# Track bot uptime
-bot.uptime = datetime.utcnow()
 
 # Global check to block commands when in sleep mode
 @bot.check
