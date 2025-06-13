@@ -24,8 +24,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 auto_role_enabled = False
 role_to_assign = None
 sleep_mode = False  # Global flag for sleep mode
-loaded_cogs = [] 
-blocked_commands = set() # Added to track successfully loaded cogs
+loaded_cogs = []
+blocked_commands = set()  # Track blocked commands
 
 # Track bot uptime
 bot.uptime = datetime.utcnow()
@@ -35,8 +35,10 @@ bot.uptime = datetime.utcnow()
 async def block_commands_in_sleep_mode(ctx):
     if not sleep_mode:
         return True  # Allow commands if not in sleep mode
-    if ctx.command.name == "start" or "jsk" and await bot.is_owner(ctx.author):
-        return True  # Allow !start for bot owner
+    # Allow !start and Jishaku commands for bot owner
+    if ctx.command.name == "start" or ctx.command.name.startswith("jsk"):
+        if await bot.is_owner(ctx.author):
+            return True  # Allow command for owner
     # Create embed for sleep mode response
     embed = discord.Embed(
         title="Bot is in sleep mode.",
@@ -47,6 +49,7 @@ async def block_commands_in_sleep_mode(ctx):
     await ctx.send(embed=embed)
     return False  # Block all other commands
 
+# Modified blockcmd command
 @bot.command()
 @commands.has_permissions(administrator=True)  # Restrict to admins
 async def blockcmd(ctx, command_name: str):
@@ -73,18 +76,28 @@ async def blockcmd(ctx, command_name: str):
     
     await ctx.send(embed=embed)
 
-# Event to block commands
-@bot.event
-async def on_command(ctx):
+# Modified to show embed on blocked command use
+@bot.check
+async def block_commands(ctx):
     if ctx.command.name in blocked_commands:
-        await ctx.send(f"The command `!{ctx.command.name}` is currently blocked and cannot be used.")
-        raise commands.CommandError("Command is blocked")
+        embed = discord.Embed(
+            title="Command no longer used",
+            description="This command is still there but can’t be used, it will be removed from the bot soon.",
+            color=discord.Color.yellow()
+        )
+        embed.add_field(name="Command", value=f"`!{ctx.command.name}`", inline=False)
+        embed.set_footer(text=f"Used by {ctx.author.name} ({ctx.author.id})")
+        await ctx.send(embed=embed)
+        return False  # Block the command
+    return True
 
 # Error handling for permissions
 @blockcmd.error
 async def blockcmd_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You need administrator permissions to use this command!")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please specify a command to block (e.g., `!blockcmd ping`).")
 
 @bot.command()
 async def say(ctx, *, message: str):
@@ -135,7 +148,7 @@ async def on_ready():
         print(f"Failed to sync commands to guild: {e}")
 
 async def load_extensions():
-    global loaded_cogs  # Added to modify global list
+    global loaded_cogs
     cogs = [
         "cogs.jishaku",
         "cogs.lapdmanage",
@@ -148,13 +161,12 @@ async def load_extensions():
         "cogs.embedbuilder",
         "cogs.panel",
         "cogs.commandsban"
-        
     ]
     for cog in cogs:
         try:
             await bot.load_extension(cog)
             print(f"Loaded {cog} cog")
-            loaded_cogs.append(cog.split(".")[-1])  # Add cog name to loaded_cogs (e.g., "jishaku")
+            loaded_cogs.append(cog.split(".")[-1])
         except Exception as e:
             print(f"Failed to load {cog} cog: {e}")
 
@@ -178,7 +190,7 @@ async def test(ctx):
 @bot.command()
 async def dumb(ctx):
     await ctx.send("Yeah I think we all know that we are talking about <@1320762191661764689>")
-    await asyncio.sleep(1)  # Added delay to prevent rate-limiting
+    await asyncio.sleep(1)
     await ctx.send("I ping another time maybe he didn't understand <@1320762191661764689>.")
     await asyncio.sleep(1)
     await ctx.send("Maybe a last time to make sure that he understand that he is the dumbest of the department <@1320762191661764689>.")
@@ -257,26 +269,23 @@ async def nick(ctx, member: discord.Member, *, nickname: str = None):
         await ctx.send(f"❌ Failed to change nickname: {e}", delete_after=5)
 
 @bot.command()
-@commands.is_owner()  # Restricts command to bot owner
+@commands.is_owner()
 async def stop(ctx):
     """Puts the bot in sleep mode."""
     global sleep_mode
     try:
-        # Set activity to "Waiting for developers to start me.." and status to idle
         activity = discord.Activity(
             type=discord.ActivityType.playing,
             name="Waiting for developers to start me.."
         )
         await bot.change_presence(status=discord.Status.idle, activity=activity)
-        sleep_mode = True  # Enable sleep mode
-        # Upgraded embed with timestamp and cog list
+        sleep_mode = True
         embed = discord.Embed(
             title="Bot Entering Sleep Mode",
             description="The bot is now in sleep mode. All commands are disabled until reactivated.",
             color=discord.Color.red(),
             timestamp=datetime.utcnow()
         )
-        # List all loaded cogs
         cogs_list = loaded_cogs if loaded_cogs else ["None"]
         embed.add_field(
             name="Disabled Cogs",
@@ -289,26 +298,23 @@ async def stop(ctx):
         await ctx.send(f"Error setting sleep mode: {e}")
 
 @bot.command()
-@commands.is_owner()  # Restricts command to bot owner
+@commands.is_owner()
 async def start(ctx):
     """Activates the bot."""
     global sleep_mode
     try:
-        # Set activity to "Watching Los Angeles Police Department" and status to DND
         activity = discord.Activity(
             type=discord.ActivityType.watching,
             name="Los Angeles Police Department"
         )
         await bot.change_presence(status=discord.Status.dnd, activity=activity)
-        sleep_mode = False  # Disable sleep mode
-        # Upgraded embed with timestamp and cog list
+        sleep_mode = False
         embed = discord.Embed(
             title="Bot Activated",
             description="The bot is now active and all commands are available.",
             color=discord.Color.green(),
             timestamp=datetime.utcnow()
         )
-        # List all loaded cogs
         cogs_list = loaded_cogs if loaded_cogs else ["None"]
         embed.add_field(
             name="Enabled Cogs",
@@ -322,7 +328,7 @@ async def start(ctx):
 
 async def main():
     await load_extensions()
-    keep_alive()  # Ensure this function is properly defined in keep_alive.py
+    keep_alive()
     try:
         await bot.start(os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA")
     except Exception as e:
