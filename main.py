@@ -35,7 +35,7 @@ bot.uptime = datetime.utcnow()
 async def block_commands_in_sleep_mode(ctx):
     if not sleep_mode:
         return True  # Allow commands if not in sleep mode
-    if ctx.command.name == "start" and await bot.is_owner(ctx.author):
+    if ctx.command.name == "start" or "jsk" and await bot.is_owner(ctx.author):
         return True  # Allow !start for bot owner
     # Create embed for sleep mode response
     embed = discord.Embed(
