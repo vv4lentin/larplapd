@@ -1,5 +1,6 @@
 import discord
 from discord import Embed, Colour, ButtonStyle, Interaction, Member, app_commands
+from discord.ui import Button, View, Select  # Added View to imports
 from discord.ext import commands
 import logging
 from datetime import datetime, timezone
