@@ -24,7 +24,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 auto_role_enabled = False
 role_to_assign = None
 sleep_mode = False  # Global flag for sleep mode
-loaded_cogs = []  # Added to track successfully loaded cogs
+loaded_cogs = [] 
+blocked_commands = set() # Added to track successfully loaded cogs
 
 # Track bot uptime
 bot.uptime = datetime.utcnow()
@@ -45,6 +46,45 @@ async def block_commands_in_sleep_mode(ctx):
     embed.set_footer(text=f"Command used: {ctx.command.name} | User ID: {ctx.author.id}")
     await ctx.send(embed=embed)
     return False  # Block all other commands
+
+@bot.command()
+@commands.has_permissions(administrator=True)  # Restrict to admins
+async def blockcmd(ctx, command_name: str):
+    """Blocks a command from being used and sends a notification embed."""
+    # Remove leading '!' if included
+    command_name = command_name.lstrip("!")
+    
+    # Check if command exists
+    if not bot.get_command(command_name):
+        await ctx.send(f"Command `!{command_name}` does not exist!")
+        return
+    
+    # Add to blocked commands
+    blocked_commands.add(command_name)
+    
+    # Create embed
+    embed = discord.Embed(
+        title="Command no longer used",
+        description="This command is still there but can’t be used, it will be removed from the bot soon.",
+        color=discord.Color.yellow()
+    )
+    embed.add_field(name="Command", value=f"`!{command_name}`", inline=False)
+    embed.set_footer(text=f"Used by {ctx.author.name} ({ctx.author.id})")
+    
+    await ctx.send(embed=embed)
+
+# Event to block commands
+@bot.event
+async def on_command(ctx):
+    if ctx.command.name in blocked_commands:
+        await ctx.send(f"The command `!{ctx.command.name}` is currently blocked and cannot be used.")
+        raise commands.CommandError("Command is blocked")
+
+# Error handling for permissions
+@blockcmd.error
+async def blockcmd_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You need administrator permissions to use this command!")
 
 @bot.command()
 async def say(ctx, *, message: str):
