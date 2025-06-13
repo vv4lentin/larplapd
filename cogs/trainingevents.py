@@ -198,7 +198,7 @@ class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
         self.started = TextInput(label="Started at", required=True)
         self.ended = TextInput(label="Ended at", required=True)
         self.attendedusers = TextInput(label="Attended Users", required=True)
-        self.promotedusers = TextInput(label="Promoted Users", required=True)
+        self.promotedusers = TextInput(label="Promoted Users Niño, ni una palabra más sobre esto. Promoted Users", required=True)
         self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
         self.add_item(self.started)
         self.add_item(self.ended)
@@ -353,28 +353,28 @@ class TrainingEvents(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="events", description="Shows the event announcement panel.")
+    @commands.hybrid_command(name="events", description="Shows the event announcement panel.")
     async def events(self, ctx: commands.Context):
         view = EventsView()
         await ctx.send("Event Announcement Panel", view=view, delete_after=60)
 
-    @commands.command(name="result", description="Shows the result logging panel for a user or mass shift/SWAT deployment.")
+    @commands.hybrid_command(name="result", description="Shows the result logging panel for a user or mass shift/SWAT deployment.")
     async def result(self, ctx: commands.Context, user: Member = None):
         view = ResultView(trainee=user)
         await ctx.send("Result Logging Panel" + (f" for {user.mention}" if user else ""), view=view, delete_after=60)
 
-    @commands.command(name="sync", description="Syncs slash commands for the specified guild.")
+    @commands.hybrid_command(name="sync", description="Syncs slash commands for the specified guild.")
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx: commands.Context):
         if str(ctx.guild.id) != "1292523481539543193":
-            await ctx.send("Error: This command can only be used in the specified guild.", delete_after=10)
+            await ctx.send("Error: This command can only be used in the specified guild.", delete_after=10, ephemeral=True)
             return
 
         try:
-            synced = await self.bot.tree.sync(guild=discord.Object(id=1292523481539543193))
-            await ctx.send(f"Successfully synced {len(synced)} commands for the guild!", delete_after=10)
+            synced = await ctx.bot.tree.sync(guild=discord.Object(id=1292523481539543193))
+            await ctx.send(f"Successfully synced {len(synced)} commands for the guild!", delete_after=10, ephemeral=True)
         except Exception as e:
-            await ctx.send(f"Error: Failed to sync commands. {str(e)}", delete_after=10)
+            await ctx.send(f"Error: Failed to sync commands. {str(e)}", delete_after=10, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(TrainingEvents(bot))
