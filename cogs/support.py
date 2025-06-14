@@ -39,10 +39,10 @@ CONFIG = {
 
 # Mapping for ticket types to display names
 TICKET_TYPE_MAPPING = {
-    "general": {"display": "General Ticket", "description": "General support help", "emoji": "❓"},
+    "general": {"display": "General Ticket", "description": "Any issues or questions.", "emoji": "❓"},
     "ia": {"display": "Internal Affairs Ticket", "description": "Report an LAPD Officer", "emoji": "🚔"},
     "boc": {"display": "Board of Chiefs", "description": "Highly sensitive issues, important things", "emoji": "👑"},
-    "botdev": {"display": "Bot Development Ticket", "description": "Report a bug", "emoji": "🤖"}
+    "botdev": {"display": "Bot Development Ticket", "description": "Report a bug / Bot suggestions", "emoji": "🤖"}
 }
 
 class TicketActionView(ui.View):
@@ -66,7 +66,6 @@ class TicketActionView(ui.View):
         self.cog.ticket_data[interaction.channel.id]["status"] = "claimed"
         await interaction.channel.edit(topic=f"Claimed by {interaction.user.display_name} | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
         await interaction.response.send_message(f"Ticket claimed by {interaction.user.mention}", ephemeral=False)
-        await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} has been claimed by {interaction.user.mention}.")
         button.disabled = True
         await interaction.message.edit(view=self)
         await self.cog.log_action("claim", interaction.user, interaction.channel, f"Claimed by {interaction.user.display_name}")
@@ -95,7 +94,6 @@ class CloseActionView(ui.View):
         await interaction.channel.edit_permissions(self.owner, read_messages=True, send_messages=True)
         self.cog.ticket_data[interaction.channel.id]["status"] = "open"
         await interaction.channel.edit(topic=f"Open | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
-        await interaction.response.send_message("Ticket reopened.")
         await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} ticket has been reopened.")
         await self.cog.log_action("reopen", interaction.user, interaction.channel, "Ticket reopened")
         await interaction.message.delete()
