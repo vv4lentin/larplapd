@@ -134,7 +134,6 @@ class EmbedBuilder(commands.Cog):
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(1, 30, commands.BucketType.user)
     async def embed_command(self, ctx: commands.Context):
-        """Sends a button to create a custom embed via a modal."""
         view = self.EmbedButton(self.default_color, self.default_thumbnail, self.view_timeout)
         await ctx.send("Click the button to create a custom embed!", view=view)
 
