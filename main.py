@@ -212,13 +212,13 @@ async def load_extensions():
         "cogs.lapdmanage",
         "cogs.trainingevents",
         "cogs.support",
-        "cogs.mod",
         "cogs.lapd",
         "cogs.bot",
         "cogs.swatmanage",
         "cogs.embedbuilder",
         "cogs.panel",
-        "cogs.commandsban"
+        "cogs.commandsban",
+        "cogs.certification_requests"
     ]
     for cog in cogs:
         try:
