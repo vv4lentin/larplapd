@@ -198,7 +198,7 @@ class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
         self.started = TextInput(label="Started at", required=True)
         self.ended = TextInput(label="Ended at", required=True)
         self.attendedusers = TextInput(label="Attended Users", required=True)
-        self.promotedusers = TextInput(label="Promoted Users Niño, ni una palabra más sobre esto. Promoted Users", required=True)
+        self.promotedusers = TextInput(label="Promoted Users", required=True)
         self.cohost = TextInput(label="Co-Host / Helpers (Optional)", required=False)
         self.add_item(self.started)
         self.add_item(self.ended)
