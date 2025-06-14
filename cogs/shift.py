@@ -236,7 +236,7 @@ class Shift(commands.Cog):
             await interaction.followup.send(f"All shift data wiped for {self.target.mention}.", ephemeral=True)
 
         class AdminTimeModal(discord.ui.Modal, title="Edit Shift Time"):
-            seconds = discord.ui.TextInput(label="Seconds", style=discord.TextStyle.short, required=True, placeholder="Enter the number of seconds")
+            minutes = discord.ui.TextInput(label="Minutes", style=discord.TextStyle.short, required=True, placeholder="Enter the number of minutes")
 
             def __init__(self, target: discord.Member, action: str):
                 super().__init__()
@@ -245,17 +245,18 @@ class Shift(commands.Cog):
 
             async def on_submit(self, interaction: discord.Interaction):
                 try:
-                    seconds = abs(int(self.seconds.value))
+                    minutes = abs(float(self.minutes.value))
+                    seconds = int(minutes * 60)  # Convert minutes to seconds
                 except ValueError:
-                    await interaction.response.send_message("Please enter a valid number of seconds.", ephemeral=True)
+                    await interaction.response.send_message("Please enter a valid number of minutes.", ephemeral=True)
                     return
                 udata = interaction.client.cogs['Shift'].get_or_create_user(self.target.id)
                 if self.action == "add":
                     udata["total"] += seconds
-                    msg = f"Added `{seconds}` seconds to {self.target.mention}."
+                    msg = f"Added `{minutes:.2f}` minutes to {self.target.mention}."
                 else:
                     udata["total"] = max(0, udata["total"] - seconds)
-                    msg = f"Subtracted `{seconds}` seconds from {self.target.mention}."
+                    msg = f"Subtracted `{minutes:.2f}` minutes from {self.target.mention}."
                 embed = interaction.client.cogs['Shift'].create_shift_admin_embed(self.target)
                 await interaction.message.edit(embed=embed, view=interaction.client.cogs['Shift'].ShiftAdminPanel(interaction.user, self.target))
                 await interaction.response.send_message(msg, ephemeral=True)
@@ -319,11 +320,12 @@ class Shift(commands.Cog):
                 total = udata["total"]
                 if udata["onduty"] and not udata["onbreak"]:
                     total += self.now_ts() - udata["start"]
-                leaderboard.append((m.display_name, total))
+                if total > 0:  # Only include users with non-zero shift time
+                    leaderboard.append((m.display_name, total))
         leaderboard.sort(key=lambda x: x[1], reverse=True)
         desc = "\n".join(f"**{n}** — `{self.humanize(t)}`" for n, t in leaderboard)
         if not desc:
-            desc = "No personnel found."
+            desc = "No personnel with recorded shift time."
         embed = discord.Embed(
             title="Duty Leaderboard",
             description=desc,
