@@ -150,14 +150,14 @@ async def blockcmd_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You need administrator permissions to use this command!")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Please specify a command to block (e.g., `!blockcmd ping`).")
+        await ctx.send("Please specify a command to block (e.g., `!blockcmd command`).")
 
 @cmdunblock.error
 async def cmdunblock_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You need administrator permissions to use this command!")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Please specify a command to unblock (e.g., `!cmdunblock ping`).")
+        await ctx.send("Please specify a command to unblock (e.g., `!cmdunblock command`).")
 
 @bot.command()
 async def say(ctx, *, message: str):
@@ -220,8 +220,7 @@ async def load_extensions():
         "cogs.swatmanage",
         "cogs.embedbuilder",
         "cogs.panel",
-        "cogs.commandsban",
-        "cogs.certification_requests"
+        "cogs.commandsban"
     ]
     for cog in cogs:
         try:
@@ -250,11 +249,7 @@ async def test(ctx):
 
 @bot.command()
 async def dumb(ctx):
-    await ctx.send("Yeah I think we all know that we are talking about <@1320762191661764689>")
-    await asyncio.sleep(1)
-    await ctx.send("I ping another time maybe he didn't understand <@1320762191661764689>.")
-    await asyncio.sleep(1)
-    await ctx.send("Maybe a last time to make sure that he understand that he is the dumbest of the department <@1320762191661764689>.")
+    await ctx.send("Yeah no the command is no longer used, please avoid using it since it is useless.")
 
 @bot.command(name='purge')
 @commands.has_permissions(manage_messages=True)
