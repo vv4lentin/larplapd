@@ -218,7 +218,8 @@ async def load_extensions():
         "cogs.embedbuilder",
         "cogs.panel",
         "cogs.commandsban",
-        "cogs.certification_requests"
+        "cogs.certification_requests",
+        "cogs.shift"
     ]
     for cog in cogs:
         try:
