@@ -196,7 +196,7 @@ class TrainingCertRequestView(View):
         self.stop()
 
 # Certification Training Requests Cog
-class CertificationTrainingRequests(commands.Cog):
+class CertsRequests(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         logger.info("CertificationTrainingRequests cog initialized")
@@ -286,5 +286,5 @@ class CertificationTrainingRequests(commands.Cog):
             await self.cog_command_error(ctx, error)
 
 async def setup(bot):
-    await bot.add_cog(CertificationTrainingRequests(bot))
+    await bot.add_cog(CertsRequests(bot))
     logger.info("CertificationTrainingRequests cog added to bot")
