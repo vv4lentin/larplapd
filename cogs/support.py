@@ -383,7 +383,7 @@ class Support(commands.Cog):
             await ctx.send("This is not a ticket channel.")
             return
         try:
-            await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True)
+            await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True, view_channels=True)
             await ctx.send(f"Added {member.mention} to the ticket.")
             await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
         except Exception as e:
@@ -396,7 +396,7 @@ class Support(commands.Cog):
             await ctx.send("This is not a ticket channel.")
             return
         try:
-            await ctx.channel.edit_permissions(member, overwrite=None)
+            await ctx.channel.edit_permissions(member, overwrite=None, view_channels=False)
             await ctx.send(f"Removed {member.mention} from the ticket.")
             await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
         except Exception as e:
