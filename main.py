@@ -82,7 +82,6 @@ async def block_commands(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)  # Restrict to admins
 async def blockcmd(ctx, command_name: str):
-    """Blocks a command from being used and sends a notification embed."""
     # Remove leading '!' if included
     command_name = command_name.lstrip("!")
     
@@ -115,7 +114,6 @@ async def blockcmd(ctx, command_name: str):
 @bot.command()
 @commands.has_permissions(administrator=True)  # Restrict to admins
 async def cmdunblock(ctx, command_name: str):
-    """Unblocks a previously blocked command."""
     # Remove leading '!' if included
     command_name = command_name.lstrip("!")
     
@@ -327,7 +325,6 @@ async def nick(ctx, member: discord.Member, *, nickname: str = None):
 @bot.command()
 @commands.is_owner()
 async def stop(ctx):
-    """Puts the bot in sleep mode."""
     global sleep_mode
     try:
         activity = discord.Activity(
@@ -356,7 +353,6 @@ async def stop(ctx):
 @bot.command()
 @commands.is_owner()
 async def start(ctx):
-    """Activates the bot."""
     global sleep_mode
     try:
         activity = discord.Activity(
