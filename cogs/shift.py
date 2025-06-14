@@ -7,7 +7,7 @@ class Shift(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.LAPD_PERSONNEL_ROLE = 1292541838904791040
-        self.LAPD_SENIOR_ROLE = [1339058176003407915, 1337050305153470574]
+        self.LAPD_SENIOR_ROLE = 1383535858698948799
         self.SHIFT_LOG_CHANNEL_ID = 1292544821688537158
         self.data = {}  # In-memory data storage
 
@@ -26,8 +26,8 @@ class Shift(commands.Cog):
         return self.data[uid]
 
     async def get_or_create_status_roles(self, guild):
-        on_duty_name = "Currently On Duty"
-        on_break_name = "Currently On Break"
+        on_duty_name = "Currently On-Duty"
+        on_break_name = "Currently On-Break"
         on_duty_role = discord.utils.get(guild.roles, name=on_duty_name)
         on_break_role = discord.utils.get(guild.roles, name=on_break_name)
         if not on_duty_role:
