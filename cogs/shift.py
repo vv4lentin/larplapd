@@ -6,9 +6,9 @@ import datetime
 class Shift(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.LAPD_PERSONNEL_ROLE = 1376236304102199457
-        self.LAPD_SENIOR_ROLE = 1376236277409775698
-        self.SHIFT_LOG_CHANNEL_ID = 1376236248821399644
+        self.LAPD_PERSONNEL_ROLE = 1292541838904791040
+        self.LAPD_SENIOR_ROLE = [1339058176003407915, 1337050305153470574]
+        self.SHIFT_LOG_CHANNEL_ID = 1292544821688537158
         self.data = {}  # In-memory data storage
 
     def now_ts(self):
