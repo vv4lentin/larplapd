@@ -320,12 +320,11 @@ class Shift(commands.Cog):
                 total = udata["total"]
                 if udata["onduty"] and not udata["onbreak"]:
                     total += self.now_ts() - udata["start"]
-                if total > 0:  # Only include users with non-zero shift time
-                    leaderboard.append((m.display_name, total))
+                leaderboard.append((m.display_name, total))
         leaderboard.sort(key=lambda x: x[1], reverse=True)
         desc = "\n".join(f"**{n}** — `{self.humanize(t)}`" for n, t in leaderboard)
         if not desc:
-            desc = "No personnel with recorded shift time."
+            desc = "No personnel found."
         embed = discord.Embed(
             title="Duty Leaderboard",
             description=desc,
