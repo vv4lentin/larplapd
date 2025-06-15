@@ -467,42 +467,5 @@ class Support(commands.Cog):
             logger.error(f"Error removing member: {str(e)}\n{traceback.format_exc()}")
             await ctx.send("❌ Error removing member.")
 
-    @commands.command()
-    async def ticketstatus(self, ctx: commands.Context):
-        if ctx.channel.id in self.ticket_data:
-            ticket = self.ticket_data[ctx.channel.id]
-            embed = discord.Embed(
-                title=f"Ticket Status: {ctx.channel.name}",
-                color=discord.Color.blue(),
-                timestamp=datetime.now()
-            )
-            embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket["type"], {}).get("display", "Unknown"), inline=True)
-            embed.add_field(name="Status", value=ticket["status"].title(), inline=True)
-            embed.add_field(name="Owner", value=ticket["owner"].mention, inline=True)
-            embed.add_field(name="Created", value=ticket["created_at"], inline=True)
-            embed.add_field(name="Claimed By", value=ticket["claimed_by"].mention if ticket["claimed_by"] else "Unclaimed", inline=True)
-            await ctx.send(embed=embed)
-        else:
-           24if any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
-                embed = discord.Embed(
-                    title="All Active Tickets",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.now()
-                )
-                for ticket_id, ticket in self.ticket_data.items():
-                    channel = self.bot.get_channel(int(ticket_id))
-                    if channel:
-                        status_emoji = "🔴" if ticket["status"] == "open" else "🟢" if ticket["status"] == "claimed" else "🔒"
-                        embed.add_field(
-                            name=f"{status_emoji} {channel.name}",
-                            value=f"Type: {TICKET_TYPE_MAPPING.get(ticket['type'], {}).get('display', 'Unknown')}\nStatus: {ticket['status'].title()}\nOwner: {ticket['owner'].mention}",
-                            inline=False
-                        )
-                if not embed.fields:
-                    embed.description = "No active tickets."
-                await ctx.send(embed=embed)
-            else:
-                await ctx.send("You can only check the status of your own ticket.")
-
 async def setup(bot):
     await bot.add_cog(Support(bot))
