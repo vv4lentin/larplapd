@@ -4,7 +4,7 @@ from discord import ui
 import io
 from datetime import datetime
 import logging
-import json
+import traceback
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -155,8 +155,8 @@ class SupportDropdown(ui.Select):
                 return
             await self.cog.create_ticket(interaction, ticket_type)
         except Exception as e:
-            logger.error(f"Error creating ticket: {str(e)}")
-            await interaction.response.send_message("Failed to create ticket. Please try again.", ephemeral=True)
+            logger.error(f"Error in dropdown callback: {str(e)}\n{traceback.format_exc()}")
+            await interaction.response.send_message("Failed to process ticket creation. Please try again.", ephemeral=True)
 
 class SupportDropdownView(ui.View):
     def __init__(self, cog):
@@ -197,20 +197,7 @@ class CloseReasonModal(ui.Modal, title="Close Ticket"):
 class Support(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.ticket_data = {}
-        self.load_ticket_data()
-
-    def load_ticket_data(self):
-        try:
-            with open("ticket_data.json", "r") as f:
-                data = json.load(f)
-                self.ticket_data = {int(k): v for k, v in data.items()}
-        except FileNotFoundError:
-            self.ticket_data = {}
-
-    def save_ticket_data(self):
-        with open("ticket_data.json", "w") as f:
-            json.dump(self.ticket_data, f, default=str)
+        self.ticket_data = {}  # In-memory storage, no JSON
 
     async def create_ticket(self, interaction: discord.Interaction, ticket_type: str):
         if ticket_type not in TICKET_TYPE_MAPPING:
@@ -218,9 +205,28 @@ class Support(commands.Cog):
             return
 
         prefix = CONFIG["ticket_prefixes"].get(ticket_type, ticket_type)
-        channel_name = f"🔴-{prefix}-{interaction.user.name.lower()}"
+        # Sanitize channel name to ensure it's valid (2-100 characters)
+        channel_name = f"🔴-{prefix}-{interaction.user.name.lower()}"[:100]
+        if len(channel_name) < 2:
+            channel_name = f"🔴-{prefix}-ticket"
 
         guild = interaction.guild
+        if not guild:
+            logger.error("Guild not found for interaction.")
+            await interaction.response.send_message("Error: Guild not found.", ephemeral=True)
+            return
+
+        # Check bot permissions
+        bot_member = guild.get_member(self.bot.user.id)
+        if not bot_member:
+            logger.error("Bot member not found in guild.")
+            await interaction.response.send_message("Error: Bot not found in guild.", ephemeral=True)
+            return
+        if not bot_member.guild_permissions.manage_channels:
+            logger.error("Bot lacks manage_channels permission.")
+            await interaction.response.send_message("Error: Bot lacks permission to create channels.", ephemeral=True)
+            return
+
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
@@ -242,7 +248,7 @@ class Support(commands.Cog):
         if category_id:
             category = guild.get_channel(category_id)
             if not isinstance(category, discord.CategoryChannel):
-                logger.warning(f"Category ID {category_id} for {ticket_type} is not a valid category. Falling back to panel channel category.")
+                logger.warning(f"Category ID {category_id} for {ticket_type} is not a valid category.")
                 category = None
 
         if not category:
@@ -258,9 +264,17 @@ class Support(commands.Cog):
                 category=category,
                 overwrites=overwrites
             )
+        except discord.errors.Forbidden as e:
+            logger.error(f"Permission error creating ticket channel: {str(e)}\n{traceback.format_exc()}")
+            await interaction.response.send_message("Error: Bot lacks permission to create channel.", ephemeral=True)
+            return
+        except discord.errors.HTTPException as e:
+            logger.error(f"HTTP error creating ticket channel: {str(e)}\n{traceback.format_exc()}")
+            await interaction.response.send_message(f"Error creating ticket channel: {str(e)}", ephemeral=True)
+            return
         except Exception as e:
-            logger.error(f"Error creating ticket channel: {str(e)}")
-            await interaction.response.send_message("Failed to create ticket channel.", ephemeral=True)
+            logger.error(f"Unexpected error creating ticket channel: {str(e)}\n{traceback.format_exc()}")
+            await interaction.response.send_message("Failed to create ticket channel. Please try again.", ephemeral=True)
             return
 
         self.ticket_data[channel.id] = {
@@ -270,7 +284,6 @@ class Support(commands.Cog):
             "claimed_by": None,
             "status": "open"
         }
-        self.save_ticket_data()
 
         embed = discord.Embed(
             title=f"Los Angeles Police Department | {TICKET_TYPE_MAPPING[ticket_type]['display']}",
@@ -285,10 +298,14 @@ class Support(commands.Cog):
 
         view = TicketActionView(self, self.ticket_data[channel.id])
         content = f"{interaction.user.mention} {role_mention}".strip()
-        await channel.send(content=content, embed=embed, view=view)
-        await interaction.response.send_message(f"Ticket created: {channel.mention}", ephemeral=True)
-        await channel.send(f"{interaction.user.mention} Your {TICKET_TYPE_MAPPING[ticket_type]['display']} has been created.")
-        await self.log_action("create", interaction.user, channel, f"Type: {TICKET_TYPE_MAPPING[ticket_type]['display']}")
+        try:
+            await channel.send(content=content, embed=embed, view=view)
+            await channel.send(f"{interaction.user.mention} Your {TICKET_TYPE_MAPPING[ticket_type]['display']} has been created.")
+            await interaction.response.send_message(f"Ticket created: {channel.mention}", ephemeral=True)
+            await self.log_action("create", interaction.user, channel, f"Type: {TICKET_TYPE_MAPPING[ticket_type]['display']}")
+        except Exception as e:
+            logger.error(f"Error sending ticket creation message: {str(e)}\n{traceback.format_exc()}")
+            await interaction.response.send_message("Ticket created, but failed to send initial message.", ephemeral=True)
 
     async def send_transcript(self, channel):
         try:
@@ -315,7 +332,7 @@ class Support(commands.Cog):
             else:
                 logger.error("Transcript channel not found")
         except Exception as e:
-            logger.error(f"Error sending transcript: {str(e)}")
+            logger.error(f"Error sending transcript: {str(e)}\n{traceback.format_exc()}")
 
     async def close_ticket(self, interaction: discord.Interaction, reason: str):
         channel = interaction.channel
@@ -325,7 +342,10 @@ class Support(commands.Cog):
         ticket_type = ticket_data.get("type", "unknown")
 
         prefix = CONFIG["ticket_prefixes"].get(ticket_type, ticket_type)
-        await channel.edit(name=f"🔒-{prefix}-{owner.name.lower()}")
+        try:
+            await channel.edit(name=f"🔒-{prefix}-{owner.name.lower()}"[:100])
+        except Exception as e:
+            logger.error(f"Error updating channel name on close: {str(e)}\n{traceback.format_exc()}")
 
         new_overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -337,12 +357,11 @@ class Support(commands.Cog):
         try:
             await channel.edit(overwrites=new_overwrites)
         except Exception as e:
-            logger.error(f"Error updating permissions on close: {str(e)}")
+            logger.error(f"Error updating permissions on close: {str(e)}\n{traceback.format_exc()}")
             await interaction.response.send_message("Error updating permissions.", ephemeral=True)
             return
 
         self.ticket_data[channel.id]["status"] = "closed"
-        self.save_ticket_data()
 
         embed = discord.Embed(
             title="Ticket Closed",
@@ -369,7 +388,10 @@ class Support(commands.Cog):
             embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
             ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
             embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-            await log_channel.send(embed=embed)
+            try:
+                await log_channel.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Error sending log message: {str(e)}\n{traceback.format_exc()}")
 
     @commands.command()
     async def ticketpanel(self, ctx: commands.Context):
@@ -399,9 +421,10 @@ class Support(commands.Cog):
                 await panel_channel.send(embed=embed, view=view)
                 await ctx.send(f"✅ Panel sent to {panel_channel.mention}", delete_after=5)
             else:
+                logger.error("Panel channel not found")
                 await ctx.send("❌ Panel channel not found.", delete_after=5)
         except Exception as e:
-            logger.error(f"Error sending panel: {str(e)}")
+            logger.error(f"Error sending panel: {str(e)}\n{traceback.format_exc()}")
             await ctx.send("❌ Error creating panel.", delete_after=5)
 
     @commands.command()
@@ -428,7 +451,7 @@ class Support(commands.Cog):
             await ctx.send(f"Added {member.mention} to the ticket.")
             await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
         except Exception as e:
-            logger.error(f"Error adding member: {str(e)}")
+            logger.error(f"Error adding member: {str(e)}\n{traceback.format_exc()}")
             await ctx.send("❌ Error adding member.")
 
     @commands.command()
@@ -441,7 +464,7 @@ class Support(commands.Cog):
             await ctx.send(f"Removed {member.mention} from the ticket.")
             await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
         except Exception as e:
-            logger.error(f"Error removing member: {str(e)}")
+            logger.error(f"Error removing member: {str(e)}\n{traceback.format_exc()}")
             await ctx.send("❌ Error removing member.")
 
     @commands.command()
@@ -460,7 +483,7 @@ class Support(commands.Cog):
             embed.add_field(name="Claimed By", value=ticket["claimed_by"].mention if ticket["claimed_by"] else "Unclaimed", inline=True)
             await ctx.send(embed=embed)
         else:
-            if any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
+           24if any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
                 embed = discord.Embed(
                     title="All Active Tickets",
                     color=discord.Color.blue(),
