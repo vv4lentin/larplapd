@@ -39,10 +39,10 @@ CONFIG = {
 
 # Mapping for ticket types to display names
 TICKET_TYPE_MAPPING = {
-    "general": {"display": "General Ticket", "description": "Any issues or questions.", "emoji": "❓"},
+    "general": {"display": "General Ticket", "description": "General support help", "emoji": "❓"},
     "ia": {"display": "Internal Affairs Ticket", "description": "Report an LAPD Officer", "emoji": "🚔"},
     "boc": {"display": "Board of Chiefs", "description": "Highly sensitive issues, important things", "emoji": "👑"},
-    "botdev": {"display": "Bot Development Ticket", "description": "Report a bug / Bot suggestions", "emoji": "🤖"}
+    "botdev": {"display": "Bot Development Ticket", "description": "Report a bug", "emoji": "🤖"}
 }
 
 class TicketActionView(ui.View):
@@ -66,6 +66,7 @@ class TicketActionView(ui.View):
         self.cog.ticket_data[interaction.channel.id]["status"] = "claimed"
         await interaction.channel.edit(topic=f"Claimed by {interaction.user.display_name} | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
         await interaction.response.send_message(f"Ticket claimed by {interaction.user.mention}", ephemeral=False)
+        await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} has been claimed by {interaction.user.mention}.")
         button.disabled = True
         await interaction.message.edit(view=self)
         await self.cog.log_action("claim", interaction.user, interaction.channel, f"Claimed by {interaction.user.display_name}")
@@ -88,6 +89,16 @@ class CloseActionView(ui.View):
         await interaction.response.send_message("Deleting ticket...", ephemeral=True)
         await self.cog.log_action("delete", interaction.user, interaction.channel, "Ticket deleted")
         await interaction.channel.delete()
+
+    @ui.button(label="Reopen", style=discord.ButtonStyle.success, emoji="🔄")
+    async def reopen(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.channel.edit_permissions(self.owner, read_messages=True, send_messages=True)
+        self.cog.ticket_data[interaction.channel.id]["status"] = "open"
+        await interaction.channel.edit(topic=f"Open | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
+        await interaction.response.send_message("Ticket reopened.")
+        await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} ticket has been reopened.")
+        await self.cog.log_action("reopen", interaction.user, interaction.channel, "Ticket reopened")
+        await interaction.message.delete()
 
 class SupportDropdown(ui.Select):
     def __init__(self, cog):
@@ -312,7 +323,7 @@ class Support(commands.Cog):
         embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
         view = CloseActionView(self, ticket_data)
         await interaction.response.send_message(embed=embed, view=view)
-        await channel.send(f"Ticket closed.")
+        await channel.send(f"{owner.mention} Your {TICKET_TYPE_MAPPING.get(ticket_type, {}).get('display', 'ticket')} has been closed. {'Only the claimer retains access.' if claimer else 'All user access has been removed.'}")
         await self.log_action("close", interaction.user, channel, f"Claimer retained: {claimer.mention if claimer else 'None'}")
 
     async def log_action(self, action: str, user: discord.Member, channel: discord.TextChannel, extra: str = ""):
@@ -364,7 +375,7 @@ class Support(commands.Cog):
             await ctx.send("❌ Error creating panel.", delete_after=5)
 
     @commands.command()
-    async def closerequest(self, ctx: commands.Context):
+    async def close(self, ctx: commands.Context):
         if ctx.channel.id not in self.ticket_data:
             await ctx.send("This is not a ticket channel.")
             return
@@ -378,12 +389,38 @@ class Support(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.command()
+    async def forceclose(self, ctx: commands.Context):
+        if not any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
+            await ctx.send("You don't have permission to force close tickets.")
+            return
+        if ctx.channel.id not in self.ticket_data:
+            await ctx.send("This is not a ticket channel.")
+            return
+        class FakeInteraction:
+            def __init__(self, ctx):
+                self.channel = ctx.channel
+                self.guild = ctx.guild
+                self.user = ctx.author
+                self.response = self.Response(ctx)
+                self.followup = self.Response(ctx)
+
+            class Response:
+                def __init__(self, ctx):
+                    self.ctx = ctx
+
+                async def send_message(self, content, **kwargs):
+                    await self.ctx.send(content, **kwargs)
+
+        interaction = FakeInteraction(ctx)
+        await self.close_ticket(interaction)
+
+    @commands.command()
     async def add(self, ctx: commands.Context, member: discord.Member):
         if ctx.channel.id not in self.ticket_data:
             await ctx.send("This is not a ticket channel.")
             return
         try:
-            await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True, view_channels=True)
+            await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True)
             await ctx.send(f"Added {member.mention} to the ticket.")
             await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
         except Exception as e:
@@ -396,7 +433,7 @@ class Support(commands.Cog):
             await ctx.send("This is not a ticket channel.")
             return
         try:
-            await ctx.channel.edit_permissions(member, overwrite=None, view_channels=False)
+            await ctx.channel.edit_permissions(member, overwrite=None)
             await ctx.send(f"Removed {member.mention} from the ticket.")
             await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
         except Exception as e:
