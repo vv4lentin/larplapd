@@ -64,12 +64,20 @@ class TicketActionView(ui.View):
 
         self.cog.ticket_data[interaction.channel.id]["claimed_by"] = interaction.user
         self.cog.ticket_data[interaction.channel.id]["status"] = "claimed"
-        await interaction.channel.edit(topic=f"Claimed by {interaction.user.display_name} | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
+        prefix = CONFIG["ticket_prefixes"].get(self.ticket_type, self.ticket_type)
+        await interaction.channel.edit(
+            name=f"🟢-{prefix}-{self.owner.name.lower()}",
+            topic=f"Claimed by {interaction.user.display_name} | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}"
+        )
         await interaction.response.send_message(f"Ticket claimed by {interaction.user.mention}", ephemeral=False)
         await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} has been claimed by {interaction.user.mention}.")
         button.disabled = True
         await interaction.message.edit(view=self)
         await self.cog.log_action("claim", interaction.user, interaction.channel, f"Claimed by {interaction.user.display_name}")
+
+    @ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🔒")
+    async def close(self, interaction: discord.Interaction, button: ui.Button):
+        await self.cog.close_ticket(interaction, reason="Closed via button")
 
 class CloseActionView(ui.View):
     def __init__(self, cog, ticket_data):
@@ -94,7 +102,11 @@ class CloseActionView(ui.View):
     async def reopen(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.channel.edit_permissions(self.owner, read_messages=True, send_messages=True)
         self.cog.ticket_data[interaction.channel.id]["status"] = "open"
-        await interaction.channel.edit(topic=f"Open | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}")
+        prefix = CONFIG["ticket_prefixes"].get(self.ticket_type, self.ticket_type)
+        await interaction.channel.edit(
+            name=f"🔴-{prefix}-{self.owner.name.lower()}",
+            topic=f"Open | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}"
+        )
         await interaction.response.send_message("Ticket reopened.")
         await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} ticket has been reopened.")
         await self.cog.log_action("reopen", interaction.user, interaction.channel, "Ticket reopened")
@@ -153,18 +165,34 @@ class SupportDropdownView(ui.View):
         self.add_item(SupportDropdown(cog))
 
 class CloseRequestView(ui.View):
-    def __init__(self, cog):
+    def __init__(self, cog, reason_modal):
         super().__init__(timeout=None)
         self.cog = cog
+        self.reason_modal = reason_modal
 
     @ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🔒")
     async def close(self, interaction: discord.Interaction, button: ui.Button):
-        await self.cog.close_ticket(interaction)
+        await interaction.response.send_modal(self.reason_modal)
 
     @ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.message.delete()
         await interaction.response.send_message("Close request cancelled.", ephemeral=True)
+
+class CloseReasonModal(ui.Modal, title="Close Ticket"):
+    def __init__(self, cog):
+        super().__init__()
+        self.cog = cog
+        self.reason = ui.TextInput(
+            label="Reason for Closing",
+            placeholder="Enter the reason for closing the ticket...",
+            style=discord.TextStyle.paragraph,
+            required=True
+        )
+        self.add_item(self.reason)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.cog.close_ticket(interaction, reason=self.reason.value)
 
 class Support(commands.Cog):
     def __init__(self, bot):
@@ -190,7 +218,7 @@ class Support(commands.Cog):
             return
 
         prefix = CONFIG["ticket_prefixes"].get(ticket_type, ticket_type)
-        channel_name = f"{prefix}-{interaction.user.name.lower()}-{datetime.now().strftime('%m%d%H%M')}"
+        channel_name = f"🔴-{prefix}-{interaction.user.name.lower()}"
 
         guild = interaction.guild
         overwrites = {
@@ -225,127 +253,130 @@ class Support(commands.Cog):
                 logger.warning("No valid category found. Creating ticket without category.")
 
         try:
-            channel = await guild.create_text_channel(
-                name=channel_name,
-                category=category,
-                overwrites=overwrites
-            )
-        except Exception as e:
-            logger.error(f"Error creating ticket channel: {str(e)}")
-            await interaction.response.send_message("Failed to create ticket channel.", ephemeral=True)
-            return
-
-        self.ticket_data[channel.id] = {
-            "owner": interaction.user,
-            "type": ticket_type,
-            "created_at": datetime.now().isoformat(),
-            "claimed_by": None,
-            "status": "open"
-        }
-        self.save_ticket_data()
-
-        embed = discord.Embed(
-            title=f"Los Angeles Police Department | {TICKET_TYPE_MAPPING[ticket_type]['display']}",
-            description="An officer will assist you soon. Please describe your issue. If you chose the wrong ticket type, use `!close`.",
-            color=discord.Color.green(),
-            timestamp=datetime.now()
+        channel = await guild.create_text_channel(
+            name=channel_name,
+            category=category,
+            overwrites=overwrites
         )
-        embed.add_field(name="Ticket Type", value=TICKET_TYPE_MAPPING[ticket_type]["display"], inline=True)
-        embed.add_field(name="Created By", value=interaction.user.mention, inline=True)
-        embed.add_field(name="Status", value="Open", inline=True)
-        embed.set_footer(text=f"Ticket ID: {channel.id}")
+    except Exception as e:
+        logger.error(f"Error creating ticket channel: {str(e)}")
+        await interaction.response.send_message("Failed to create ticket channel.", ephemeral=True)
+        return
 
-        view = TicketActionView(self, self.ticket_data[channel.id])
-        content = f"{interaction.user.mention} {role_mention}".strip()
-        await channel.send(content=content, embed=embed, view=view)
-        await interaction.response.send_message(f"Ticket created: {channel.mention}", ephemeral=True)
-        await channel.send(f"{interaction.user.mention} Your {TICKET_TYPE_MAPPING[ticket_type]['display']} has been created.")
-        await self.log_action("create", interaction.user, channel, f"Type: {TICKET_TYPE_MAPPING[ticket_type]['display']}")
+    self.ticket_data[channel.id] = {
+        "owner": interaction.user,
+        "type": ticket_type,
+        "created_at": datetime.now().isoformat(),
+        "claimed_by": None,
+        "status": "open"
+    }
+    self.save_ticket_data()
 
-    async def send_transcript(self, channel):
-        try:
-            transcript = []
-            async for message in channel.history(limit=None, oldest_first=True):
-                timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                content = message.content or "[No content]"
-                transcript.append(f"[{timestamp}] {message.author.display_name}: {content}")
+    embed = discord.Embed(
+        title=f"Los Angeles Police Department | {TICKET_TYPE_MAPPING[ticket_type]['display']}",
+        description="An officer will assist you soon. Please describe your issue. If you chose the wrong ticket type, use the Close button or `!close`.",
+        color=discord.Color.green(),
+        timestamp=datetime.now()
+    )
+    embed.add_field(name="Ticket Type", value=TICKET_TYPE_MAPPING[ticket_type]["display"], inline=True)
+    embed.add_field(name="Created By", value=interaction.user.mention, inline=True)
+    embed.add_field(name="Status", value="Open", inline=True)
+    embed.set_footer(text=f"Ticket ID: {channel.id}")
 
-            transcript_text = "\n".join(transcript)
-            file = discord.File(io.StringIO(transcript_text), filename=f"transcript-{channel.name}.txt")
-            log_channel = self.bot.get_channel(CONFIG["transcript_channel_id"])
+    view = TicketActionView(self, self.ticket_data[channel.id])
+    content = f"{interaction.user.mention} {role_mention}".strip()
+    await channel.send(content=content, embed=embed, view=view)
+    await interaction.response.send_message(f"Ticket created: {channel.mention}", ephemeral=True)
+    await channel.send(f"{interaction.user.mention} Your {TICKET_TYPE_MAPPING[ticket_type]['display']} has been created.")
+    await self.log_action("create", interaction.user, ticket_type, channel, f"Type: {TICKET_TYPE_MAPPING[ticket_type]['display']}")
 
-            if log_channel:
-                embed = discord.Embed(
-                    title=f"Transcript for {channel.name}",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.now()
-                )
-                embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
-                ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
-                embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-                await log_channel.send(embed=embed, file=file)
-            else:
-                logger.error("Transcript channel not found")
-        except Exception as e:
-            logger.error(f"Error sending transcript: {str(e)}")
+async def send_transcript(self, channel):
+    try:
+        transcript = []
+        async for message in channel.history(limit=None, oldest_first=True):
+            timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            content = message.content or "[No content]"
+            transcript.append(f"[{timestamp}] {message.author.display_name}: {content}")
 
-    async def close_ticket(self, interaction: discord.Interaction):
-        channel = interaction.channel
-        ticket_data = self.ticket_data.get(channel.id, {})
-        owner = ticket_data.get("owner")
-        claimer = ticket_data.get("claimed_by")
-        ticket_type = ticket_data.get("type", "unknown")
+        transcript_text = "\n".join(transcript)
+        file = discord.File(io.StringIO(transcript_text), filename=f"transcript-{channel.name}.txt")
+        log_channel = self.bot.get_channel(CONFIG["transcript_channel_id"])
 
-        new_overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-        }
-        if claimer:
-            new_overwrites[claimer] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
-        try:
-            await channel.edit(overwrites=new_overwrites)
-        except Exception as e:
-            logger.error(f"Error updating permissions on close: {str(e)}")
-            await interaction.response.send_message("Error updating permissions.", ephemeral=True)
-            return
-
-        self.ticket_data[channel.id]["status"] = "closed"
-        self.save_ticket_data()
-
-        embed = discord.Embed(
-            title="Ticket Closed",
-            description="This ticket is closed. Choose an action below:",
-            color=discord.Color.orange(),
-            timestamp=datetime.now()
-        )
-        embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
-        embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-        view = CloseActionView(self, ticket_data)
-        await interaction.response.send_message(embed=embed, view=view)
-        await channel.send(f"{owner.mention} Your {TICKET_TYPE_MAPPING.get(ticket_type, {}).get('display', 'ticket')} has been closed. {'Only the claimer retains access.' if claimer else 'All user access has been removed.'}")
-        await self.log_action("close", interaction.user, channel, f"Claimer retained: {claimer.mention if claimer else 'None'}")
-
-    async def log_action(self, action: str, user: discord.Member, channel: discord.TextChannel, extra: str = ""):
-        log_channel = self.bot.get_channel(CONFIG["log_channel_id"])
         if log_channel:
             embed = discord.Embed(
-                title=f"Ticket {action.capitalize()}",
-                description=f"Action: {action}\nChannel: {channel.name}\nUser: {user.mention}\n{extra}",
+                title=f"Transcript for {channel.name}",
                 color=discord.Color.blue(),
                 timestamp=datetime.now()
             )
             embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
             ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
             embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-            await log_channel.send(embed=embed)
+            await log_channel.send(embed=embed, file=file)
+        else:
+            logger.error("Transcript channel not found")
+    except Exception as e:
+        logger.error(f"Error sending transcript: {str(e)}")
 
-    @commands.command()
-    async def ticketpanel(self, ctx: commands.Context):
-        try:
-            embed = discord.Embed(
-                title="Los Angeles Police Department Support",
-                description="""
+async def close_ticket(self, interaction: discord.Interaction, reason: str):
+    channel = interaction.channel
+    ticket_data = self.ticket_data.get(channel.id, {})
+    owner = ticket_data.get("owner")
+    claimer = ticket_data.get("claimed_by")
+    ticket_type = ticket_data.get("type", "unknown")
+
+    prefix = CONFIG["ticket_prefixes"].get(ticket_type, ticket_type)
+    await channel.edit(name=f"🔒-{prefix}-{owner.name.lower()}")
+
+    new_overwrites = {
+        interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+        interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+    }
+    if claimer:
+        new_overwrites[claimer] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+
+    try:
+        await channel.edit(overwrites=new_overwrites)
+    except Exception as e:
+        logger.error(f"Error updating permissions on close: {str(e)}")
+        await interaction.response.send_message("Error updating permissions.", ephemeral=True)
+        return
+
+    self.ticket_data[channel.id]["status"] = "closed"
+    self.save_ticket_data()
+
+    embed = discord.Embed(
+        title="Ticket Closed",
+        description=f"This ticket is closed. Reason: {reason}\nChoose an action below:",
+        color=discord.Color.orange(),
+        timestamp=datetime.now()
+    )
+    embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
+    embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
+    view = CloseActionView(self, ticket_data)
+    await interaction.response.send_message(embed=embed, view=view)
+    await channel.send(f"{owner.mention} Your {TICKET_TYPE_MAPPING.get(ticket_type, {}).get('display', 'ticket')} has been closed. {'Only the claimer retains access.' if claimer else 'All user access has been removed.'}")
+    await self.log_action("close", interaction.user, channel, f"Reason: {reason} | Claimer retained: {claimer.mention if claimer else 'None'}")
+
+async def log_action(self, action: str, user: discord.Member, channel: discord.TextChannel, extra: str = ""):
+    log_channel = self.bot.get_channel(CONFIG["log_channel_id"])
+    if log_channel:
+        embed = discord.Embed(
+            title=f"Ticket {action.capitalize()}",
+            description=f"Action: {action}\nChannel: {channel.name}\nUser: {user.mention}\n{extra}",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
+        ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
+        embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
+        await log_channel.send(embed=embed)
+
+@commands.command()
+async def ticketpanel(self, ctx: commands.Context):
+    try:
+        embed = discord.Embed(
+            title="Los Angeles Police Department Support",
+            description="""
 **General Ticket:** ❓
 -> General questions and issues
 
@@ -356,125 +387,100 @@ class Support(commands.Cog):
 -> Highly important issues that require BOC
 /!\ Do not open a BOC ticket for a minor issue /!\
 
-
 **Bot Development Ticket:** 🤖
 -> Report a bot bug or an issue with the bot
 """,
-                color=discord.Color.blue(),
-                timestamp=datetime.now()
-            )
-            view = SupportDropdownView(self)
-            panel_channel = self.bot.get_channel(CONFIG["panel_channel_id"])
-            if panel_channel:
-                await panel_channel.send(embed=embed, view=view)
-                await ctx.send(f"✅ Panel sent to {panel_channel.mention}", delete_after=5)
-            else:
-                await ctx.send("❌ Panel channel not found.", delete_after=5)
-        except Exception as e:
-            logger.error(f"Error sending panel: {str(e)}")
-            await ctx.send("❌ Error creating panel.", delete_after=5)
-
-    @commands.command()
-    async def close(self, ctx: commands.Context):
-        if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.")
-            return
-        embed = discord.Embed(
-            title="Close Request",
-            description="Confirm ticket closure:",
-            color=discord.Color.orange(),
+            color=discord.Color.blue(),
             timestamp=datetime.now()
         )
-        view = CloseRequestView(self)
-        await ctx.send(embed=embed, view=view)
+        view = SupportDropdownView(self)
+        panel_channel = self.bot.get_channel(CONFIG["panel_channel_id"])
+        if panel_channel:
+            await panel_channel.send(embed=embed, view=view)
+            await ctx.send(f"✅ Panel sent to {panel_channel.mention}", delete_after=5)
+        else:
+            await ctx.send("❌ Panel channel not found.", delete_after=5)
+    except Exception as e:
+        logger.error(f"Error sending panel: {str(e)}")
+        await ctx.send("❌ Error creating panel.", delete_after=5)
 
-    @commands.command()
-    async def forceclose(self, ctx: commands.Context):
-        if not any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
-            await ctx.send("You don't have permission to force close tickets.")
-            return
-        if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.")
-            return
-        class FakeInteraction:
-            def __init__(self, ctx):
-                self.channel = ctx.channel
-                self.guild = ctx.guild
-                self.user = ctx.author
-                self.response = self.Response(ctx)
-                self.followup = self.Response(ctx)
+@commands.command()
+async def close(self, ctx: commands.Context):
+    if ctx.channel.id not in self.ticket_data:
+        await ctx.send("This is not a ticket channel.")
+        return
+    embed = discord.Embed(
+        title="Close Request",
+        description="Confirm ticket closure by providing a reason:",
+        color=discord.Color.orange(),
+        timestamp=datetime.now()
+    )
+    reason_modal = CloseReasonModal(self)
+    view = CloseRequestView(self, reason_modal)
+    await ctx.send(embed=embed, view=view)
 
-            class Response:
-                def __init__(self, ctx):
-                    self.ctx = ctx
+@commands.command()
+async def add(self, ctx: commands.Context, member: discord.Member):
+    if ctx.channel.id not in self.ticket_data:
+        await ctx.send("This is not a ticket channel.")
+        return
+    try:
+        await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True)
+        await ctx.send(f"Added {member.mention} to the ticket.")
+        await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
+    except Exception as e:
+        logger.error(f"Error adding member: {str(e)}")
+        await ctx.send("❌ Error adding member.")
 
-                async def send_message(self, content, **kwargs):
-                    await self.ctx.send(content, **kwargs)
+@commands.command()
+async def remove(self, ctx: commands.Context, member: discord.Member):
+    if ctx.channel.id not in self.ticket_data:
+        await ctx.send("This is not a ticket channel.")
+        return
+    try:
+        await ctx.channel.edit_permissions(member, overwrite=None)
+        await ctx.send(f"Removed {member.mention} from the ticket.")
+        await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
+    except Exception as e:
+        logger.error(f"Error removing member: {str(e)}")
+        await ctx.send("❌ Error removing member.")
 
-        interaction = FakeInteraction(ctx)
-        await self.close_ticket(interaction)
-
-    @commands.command()
-    async def add(self, ctx: commands.Context, member: discord.Member):
-        if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.")
-            return
-        try:
-            await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True)
-            await ctx.send(f"Added {member.mention} to the ticket.")
-            await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
-        except Exception as e:
-            logger.error(f"Error adding member: {str(e)}")
-            await ctx.send("❌ Error adding member.")
-
-    @commands.command()
-    async def remove(self, ctx: commands.Context, member: discord.Member):
-        if ctx.channel.id not in self.ticket_data:
-            await ctx.send("This is not a ticket channel.")
-            return
-        try:
-            await ctx.channel.edit_permissions(member, overwrite=None)
-            await ctx.send(f"Removed {member.mention} from the ticket.")
-            await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
-        except Exception as e:
-            logger.error(f"Error removing member: {str(e)}")
-            await ctx.send("❌ Error removing member.")
-
-    @commands.command()
-    async def ticketstatus(self, ctx: commands.Context):
-        if ctx.channel.id in self.ticket_data:
-            ticket = self.ticket_data[ctx.channel.id]
+@commands.command()
+async def ticketstatus(self, ctx: commands.Context):
+    if ctx.channel.id in self.ticket_data:
+        ticket = self.ticket_data[ctx.channel.id]
+        embed = discord.Embed(
+            title=f"Ticket Status: {ctx.channel.name}",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket["type"], {}).get("display", "Unknown"), inline=True)
+        embed.add_field(name="Status", value=ticket["status"].title(), inline=True)
+        embed.add_field(name="Owner", value=ticket["owner"].mention, inline=True)
+        embed.add_field(name="Created", value=ticket["created_at"], inline=True)
+        embed.add_field(name="Claimed By", value=ticket["claimed_by"].mention if ticket["claimed_by"] else "Unclaimed", inline=True)
+        await ctx.send(embed=embed)
+    else:
+        if any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
             embed = discord.Embed(
-                title=f"Ticket Status: {ctx.channel.name}",
+                title="All Active Tickets",
                 color=discord.Color.blue(),
                 timestamp=datetime.now()
             )
-            embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket["type"], {}).get("display", "Unknown"), inline=True)
-            embed.add_field(name="Status", value=ticket["status"].title(), inline=True)
-            embed.add_field(name="Owner", value=ticket["owner"].mention, inline=True)
-            embed.add_field(name="Created", value=ticket["created_at"], inline=True)
-            embed.add_field(name="Claimed By", value=ticket["claimed_by"].mention if ticket["claimed_by"] else "Unclaimed", inline=True)
+            for ticket_id, ticket in self.ticket_data.items():
+                channel = self.bot.get_channel(int(ticket_id))
+                if channel:
+                    status_emoji = "🔴" if ticket["status"] == "open" else "🟢" if ticket["status"] == "claimed" else "🔒"
+                    embed.add_field(
+                        name=f"{status_emoji} {channel.name}",
+                        value=f"Type: {TICKET_TYPE_MAPPING.get(ticket['type'], {}).get('display', 'Unknown')}\nStatus: {ticket['status'].title()}\nOwner: {ticket['owner'].mention}",
+                        inline=False
+                    )
+            if not embed.fields:
+                embed.description = "No active tickets."
             await ctx.send(embed=embed)
         else:
-            if any(role.id in SUPPORT_ROLES.values() for role in ctx.author.roles):
-                embed = discord.Embed(
-                    title="All Active Tickets",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.now()
-                )
-                for ticket_id, ticket in self.ticket_data.items():
-                    channel = self.bot.get_channel(int(ticket_id))
-                    if channel:
-                        embed.add_field(
-                            name=f"{channel.name}",
-                            value=f"Type: {TICKET_TYPE_MAPPING.get(ticket['type'], {}).get('display', 'Unknown')}\nStatus: {ticket['status'].title()}\nOwner: {ticket['owner'].mention}",
-                            inline=False
-                        )
-                if not embed.fields:
-                    embed.description = "No active tickets."
-                await ctx.send(embed=embed)
-            else:
-                await ctx.send("You can only check the status of your own ticket.")
+            await ctx.send("You can only check the status of your own ticket.")
 
 async def setup(bot):
     await bot.add_cog(Support(bot))
