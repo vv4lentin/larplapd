@@ -4,7 +4,6 @@ import requests
 import json
 
 class PRCUtilities(commands.Cog):
-    """A cog for executing commands in an ER:LC private server via API."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -17,12 +16,7 @@ class PRCUtilities(commands.Cog):
         }
 
     @commands.command(name="execute")
-    async def execute_command(self, ctx, *, command: str):
-        """
-        Sends a command to the ER:LC private server via API.
-        Usage: !execute <command>
-        Example: !execute :h Hey everyone!
-        """
+    async def execute_command(self, ctx, *, command: 
         # Restrict to users with administrator permissions
         if not ctx.author.guild_permissions.administrator:
             await ctx.send("You need administrator permissions to use this command.")
