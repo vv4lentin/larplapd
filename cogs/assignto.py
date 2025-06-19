@@ -35,7 +35,6 @@ class AssignTO(commands.Cog):
         # Create assignments
         assignments = []
         for prob_officer in prob_officers:
-            # Randomly select a TO (ensure there's at least one TO)
             assigned_to = random.choice(tos)
             assignments.append(f"{prob_officer.mention} -> {assigned_to.mention}")
 
@@ -46,13 +45,33 @@ class AssignTO(commands.Cog):
             color=discord.Color.blue()
         )
 
-        # Add assignments to the embed
+        # Split assignments into fields to avoid exceeding 1024 characters
         if assignments:
-            embed.add_field(
-                name="Assignments",
-                value="\n".join(assignments),
-                inline=False
-            )
+            current_field = ""
+            field_count = 1
+
+            for assignment in assignments:
+                # Check if adding the next assignment would exceed 1024 characters
+                if len(current_field) + len(assignment) + 1 <= 1024:
+                    current_field += assignment + "\n"
+                else:
+                    # Add the current field to the embed
+                    embed.add_field(
+                        name=f"Assignments (Part {field_count})" if field_count > 1 else "Assignments",
+                        value=current_field.strip() or "No assignments in this part.",
+                        inline=False
+                    )
+                    # Start a new field
+                    current_field = assignment + "\n"
+                    field_count += 1
+
+            # Add the last field if it contains any assignments
+            if current_field:
+                embed.add_field(
+                    name=f"Assignments (Part {field_count})" if field_count > 1 else "Assignments",
+                    value=current_field.strip(),
+                    inline=False
+                )
         else:
             embed.add_field(
                 name="Assignments",
@@ -61,8 +80,11 @@ class AssignTO(commands.Cog):
             )
 
         # Send the embed to the target channel
-        await target_channel.send(embed=embed)
-        await ctx.send(f"Assignments have been posted in {target_channel.mention}.")
+        try:
+            await target_channel.send(embed=embed)
+            await ctx.send(f"Assignments have been posted in {target_channel.mention}.")
+        except discord.HTTPException as e:
+            await ctx.send(f"Error sending embed: {e}")
 
 async def setup(bot):
     await bot.add_cog(AssignTO(bot))
