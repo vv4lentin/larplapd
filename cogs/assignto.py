@@ -32,11 +32,16 @@ class AssignTO(commands.Cog):
             await ctx.send("Error: No TOs found.")
             return
 
-        # Create assignments
-        assignments = []
-        for prob_officer in prob_officers:
-            assigned_to = random.choice(tos)
-            assignments.append(f"{prob_officer.mention} -> {assigned_to.mention}")
+        # Create assignments: Distribute Probationary Officers among TOs
+        assignments = {to: [] for to in tos}  # Dictionary to store TO -> List of Prob Officers
+        prob_officers_copy = prob_officers.copy()  # Copy to manipulate
+        random.shuffle(prob_officers_copy)  # Shuffle for random distribution
+
+        # Distribute Probationary Officers as evenly as possible
+        while prob_officers_copy:
+            for to in tos:
+                if prob_officers_copy:
+                    assignments[to].append(prob_officers_copy.pop())
 
         # Create the embed
         embed = discord.Embed(
@@ -45,34 +50,28 @@ class AssignTO(commands.Cog):
             color=discord.Color.blue()
         )
 
-        # Split assignments into fields to avoid exceeding 1024 characters
-        if assignments:
-            current_field = ""
-            field_count = 1
-
-            for assignment in assignments:
-                # Check if adding the next assignment would exceed 1024 characters
-                if len(current_field) + len(assignment) + 1 <= 1024:
-                    current_field += assignment + "\n"
-                else:
-                    # Add the current field to the embed
-                    embed.add_field(
-                        name=f"Assignments (Part {field_count})" if field_count > 1 else "Assignments",
-                        value=current_field.strip() or "No assignments in this part.",
-                        inline=False
-                    )
-                    # Start a new field
-                    current_field = assignment + "\n"
-                    field_count += 1
-
-            # Add the last field if it contains any assignments
-            if current_field:
+        # Add fields for each TO
+        for to, assigned_probs in assignments.items():
+            if assigned_probs:  # Only add a field if the TO has assigned officers
+                # Create the field content
+                field_value = "\n".join(f"- {prob.mention}" for prob in assigned_probs)
+                # Ensure field value is under 1024 characters
+                if len(field_value) > 1024:
+                    field_value = field_value[:1000] + "... (truncated)"
                 embed.add_field(
-                    name=f"Assignments (Part {field_count})" if field_count > 1 else "Assignments",
-                    value=current_field.strip(),
+                    name=f"{to.display_name} ({to.mention})",
+                    value=field_value or "No Probationary Officers assigned.",
                     inline=False
                 )
-        else:
+            else:
+                embed.add_field(
+                    name=f"{to.display_name} ({to.mention})",
+                    value="No Probationary Officers assigned.",
+                    inline=False
+                )
+
+        # If no assignments were made (edge case)
+        if not any(assignments.values()):
             embed.add_field(
                 name="Assignments",
                 value="No assignments could be made.",
