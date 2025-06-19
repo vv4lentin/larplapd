@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord.ui import Button, View, Modal, TextInput
 from discord import Interaction, TextStyle
 from datetime import datetime
+import re
 
 # Simulated callsign storage (replace with database if needed)
 callsigns_db = {}  # Format: {user_id: callsign}
@@ -40,16 +41,20 @@ class CallsignModal(discord.ui.Modal, title="Request a Callsign"):
         deny_button = Button(label="Deny", style=discord.ButtonStyle.red, custom_id=f"deny_callsign_{interaction.user.id}")
 
         async def accept_callback(interaction: Interaction):
-            # Store callsign (replace with database logic)
-            callsigns_db[interaction.user.id] = self.callsign.value
-            await interaction.response.send_message(f"Callsign `{self.callsign.value}` approved for {interaction.user.mention}!", ephemeral=True)
+            # Extract requester's user ID from custom_id
+            requester_id = int(interaction.data['custom_id'].split('_')[2])
+            callsign = interaction.data['custom_id'].split('_')[3]
+            # Store callsign for requester (replace with database logic)
+            callsigns_db[requester_id] = callsign
+            await interaction.response.send_message(f"Callsign `{callsign}` approved for <@{requester_id}>!", ephemeral=True)
             # Disable buttons after action
             accept_button.disabled = True
             deny_button.disabled = True
             await interaction.message.edit(view=view)
 
         async def deny_callback(interaction: Interaction):
-            await interaction.response.send_message(f"Callsign request for {interaction.user.mention} denied.", ephemeral=True)
+            requester_id = int(interaction.data['custom_id'].split('_')[2])
+            await interaction.response.send_message(f"Callsign request for <@{requester_id}> denied.", ephemeral=True)
             # Disable buttons after action
             accept_button.disabled = True
             deny_button.disabled = True
@@ -157,7 +162,7 @@ class Panel(commands.Cog):
             inline=False
         )
         embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/5/497/Los_Angeles_Police_Department_seal.svg/512px-Los_Angeles_Police_Department_seal.svg.png")
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1379422640003153961/1377358249844742944/Los_Angeles_Police_Department_1_1.png?ex=6838ac54&is=68375ad4&hm=e2dde275075c243188d3f18f71a984b486672877fff44ded4ae4baff3ca821fd&")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1369422640003153961/1377358249044742174/Los_Angeles_Police_Department_1_1.png?ex=6838ac54&is=68375ad4&hm=e2dde275075c243188d3f18f71a984b486672877fff44ded4ae4baff3ca821fd&")
 
         # Create the buttons
         view = View(timeout=None)  # Persistent view
@@ -245,6 +250,42 @@ class Panel(commands.Cog):
             await channel.send(embed=embed)
         else:
             await ctx.send("Error: Callsign list channel not found.")
+
+    @commands.command(name="copycallsigns")
+    async def copycallsigns(self, ctx):
+        # Check if the message is a reply
+        if not ctx.message.reference:
+            await ctx.send("Error: You must reply to a message with a 'Callsigns' embed to use this command.")
+            return
+
+        # Fetch the replied-to message
+        try:
+            replied_message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        except discord.NotFound:
+            await ctx.send("Error: Replied message not found.")
+            return
+
+        # Check if the replied message has an embed
+        if not replied_message.embeds or not replied_message.embeds[0].title == "Callsigns":
+            await ctx.send("Error: Replied message must contain a 'Callsigns' embed.")
+            return
+
+        embed = replied_message.embeds[0]
+        if not embed.description or embed.description == "No callsigns assigned.":
+            await ctx.send("Error: The embed has no callsigns to copy.")
+            return
+
+        # Parse the embed description (format: <@user_id>: callsign)
+        added_count = 0
+        for line in embed.description.split("\n"):
+            match = re.match(r"<@(\d+)>: (.+)", line)
+            if match:
+                user_id = int(match.group(1))
+                callsign = match.group(2).strip()
+                callsigns_db[user_id] = callsign  # Add to database
+                added_count += 1
+
+        await ctx.send(f"Successfully copied {added_count} callsign(s) to the database.")
 
 async def setup(bot):
     await bot.add_cog(Panel(bot))
