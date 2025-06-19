@@ -220,7 +220,8 @@ async def load_extensions():
         "cogs.commandsban",
         "cogs.certification_requests",
         "cogs.shift",
-        "cogs.prcutilities"
+        "cogs.prcutilities",
+        "cogs.assignto"
     ]
     for cog in cogs:
         try:
