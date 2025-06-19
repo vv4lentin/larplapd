@@ -4,7 +4,71 @@ from discord.ui import Button, View, Modal, TextInput
 from discord import Interaction, TextStyle
 from datetime import datetime
 
-# Arrest Modal (as provided)
+# Simulated callsign storage (replace with database if needed)
+callsigns_db = {}  # Format: {user_id: callsign}
+
+# Callsign Request Modal
+class CallsignModal(discord.ui.Modal, title="Request a Callsign"):
+    def __init__(self):
+        super().__init__()
+        self.roblox_discord = discord.ui.TextInput(
+            label="Roblox + Discord User",
+            placeholder="Enter your Roblox and Discord username",
+            required=True
+        )
+        self.callsign = discord.ui.TextInput(
+            label="Callsign Requested",
+            placeholder="Enter the callsign you want",
+            required=True
+        )
+        self.add_item(self.roblox_discord)
+        self.add_item(self.callsign)
+
+    async def on_submit(self, interaction: Interaction):
+        # Create embed for callsign request
+        embed = discord.Embed(
+            title="Callsign Request",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        embed.add_field(name="Who", value=interaction.user.mention, inline=False)
+        embed.add_field(name="Callsign", value=self.callsign.value, inline=False)
+
+        # Create accept/deny buttons
+        view = View(timeout=None)
+        accept_button = Button(label="Accept", style=discord.ButtonStyle.green, custom_id=f"accept_callsign_{interaction.user.id}_{self.callsign.value}")
+        deny_button = Button(label="Deny", style=discord.ButtonStyle.red, custom_id=f"deny_callsign_{interaction.user.id}")
+
+        async def accept_callback(interaction: Interaction):
+            # Store callsign (replace with database logic)
+            callsigns_db[interaction.user.id] = self.callsign.value
+            await interaction.response.send_message(f"Callsign `{self.callsign.value}` approved for {interaction.user.mention}!", ephemeral=True)
+            # Disable buttons after action
+            accept_button.disabled = True
+            deny_button.disabled = True
+            await interaction.message.edit(view=view)
+
+        async def deny_callback(interaction: Interaction):
+            await interaction.response.send_message(f"Callsign request for {interaction.user.mention} denied.", ephemeral=True)
+            # Disable buttons after action
+            accept_button.disabled = True
+            deny_button.disabled = True
+            await interaction.message.edit(view=view)
+
+        accept_button.callback = accept_callback
+        deny_button.callback = deny_callback
+        view.add_item(accept_button)
+        view.add_item(deny_button)
+
+        # Send request to specified channel
+        channel = interaction.guild.get_channel(1353106180406509682)
+        if channel:
+            await channel.send(embed=embed, view=view)
+            await interaction.response.send_message("Callsign request submitted!", ephemeral=True)
+        else:
+            await interaction.response.send_message("Error: Request channel not found.", ephemeral=True)
+
+# Arrest Modal (unchanged)
 class ArrestModal(discord.ui.Modal, title="Log an Arrest"):
     def __init__(self):
         super().__init__()
@@ -87,8 +151,13 @@ class Panel(commands.Cog):
             value="Use this to view your active Punishments.",
             inline=False
         )
-        embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Los_Angeles_Police_Department_seal.svg/512px-Los_Angeles_Police_Department_seal.svg.png")
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1369422640003153961/1377358249044742174/Los_Angeles_Police_Department_1_1.png?ex=6838ac54&is=68375ad4&hm=e2dde275075c243188d3f18f71a984b486672877fff44ded4ae4baff3ca821fd&")
+        embed.add_field(
+            name="📢 Request Callsign",
+            value="Use this to request a callsign.",
+            inline=False
+        )
+        embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/5/497/Los_Angeles_Police_Department_seal.svg/512px-Los_Angeles_Police_Department_seal.svg.png")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1379422640003153961/1377358249844742944/Los_Angeles_Police_Department_1_1.png?ex=6838ac54&is=68375ad4&hm=e2dde275075c243188d3f18f71a984b486672877fff44ded4ae4baff3ca821fd&")
 
         # Create the buttons
         view = View(timeout=None)  # Persistent view
@@ -96,7 +165,6 @@ class Panel(commands.Cog):
         # Log Arrest Button
         log_arrest_button = Button(label="Log Arrest", style=discord.ButtonStyle.primary, custom_id="log_arrest")
         async def log_arrest_callback(interaction: discord.Interaction):
-            # Show the arrest modal when the button is clicked
             modal = ArrestModal()
             await interaction.response.send_modal(modal)
         log_arrest_button.callback = log_arrest_callback
@@ -104,35 +172,79 @@ class Panel(commands.Cog):
         # View Punishments Button
         view_punishments_button = Button(label="View Punishments", style=discord.ButtonStyle.secondary, custom_id="view_punishments")
         async def view_punishments_callback(interaction: discord.Interaction):
-            # Check user's roles against punishment roles
             user = interaction.user
             user_roles = [role.id for role in user.roles]
             active_punishments = [role for role in self.punishment_roles if role in user_roles]
-
-            # Create an embed for the punishments
             embed = discord.Embed(
                 title=f"Punishments for - {user.display_name} -",
                 color=discord.Color.red(),
                 timestamp=datetime.now()
             )
-            embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Los_Angeles_Police_Department_seal.svg/512px-Los_Angeles_Police_Department_seal.svg.png")
-
+            embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/5/497/Los_Angeles_Police_Department_seal.svg/512px-Los_Angeles_Police_Department_seal.svg.png")
             if active_punishments:
-                # List the roles with pings
                 punishment_list = "\n".join([f"<@&{role_id}>" for role_id in active_punishments])
                 embed.description = punishment_list
             else:
                 embed.description = "No active punishments."
-
             await interaction.response.send_message(embed=embed, ephemeral=True)
         view_punishments_button.callback = view_punishments_callback
+
+        # Callsign Request Button
+        callsign_button = Button(label="Request Callsign", style=discord.ButtonStyle.green, custom_id="request_callsign")
+        async def callsign_callback(interaction: discord.Interaction):
+            modal = CallsignModal()
+            await interaction.response.send_modal(modal)
+        callsign_button.callback = callsign_callback
 
         # Add buttons to the view
         view.add_item(log_arrest_button)
         view.add_item(view_punishments_button)
+        view.add_item(callsign_button)
 
         # Send the embed with the buttons
         await ctx.send(embed=embed, view=view)
+
+    @commands.command(name="callsigns")
+    async def callsigns(self, ctx):
+        # Create embed for listing callsigns
+        embed = discord.Embed(
+            title="Callsigns",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        if callsigns_db:
+            callsign_list = "\n".join([f"<@{user_id}>: {callsign}" for user_id, callsign in callsigns_db.items()])
+            embed.description = callsign_list
+        else:
+            embed.description = "No callsigns assigned."
+        channel = ctx.guild.get_channel(1344921844557414411)
+        if channel:
+            await channel.send(embed=embed)
+        else:
+            await ctx.send("Error: Callsign list channel not found.")
+
+    @commands.command(name="nocallsign")
+    async def nocallsign(self, ctx):
+        # Create embed for members without callsigns
+        embed = discord.Embed(
+            title="Members Without Callsigns",
+            color=discord.Color.red(),
+            timestamp=datetime.now()
+        )
+        role = ctx.guild.get_role(1292541838904791040)
+        if not role:
+            await ctx.send("Error: Role not found.")
+            return
+        members_without_callsign = [member.mention for member in role.members if member.id not in callsigns_db]
+        if members_without_callsign:
+            embed.description = "\n".join(members_without_callsign)
+        else:
+            embed.description = "All members with this role have callsigns."
+        channel = ctx.guild.get_channel(1344921844557414411)
+        if channel:
+            await channel.send(embed=embed)
+        else:
+            await ctx.send("Error: Callsign list channel not found.")
 
 async def setup(bot):
     await bot.add_cog(Panel(bot))
