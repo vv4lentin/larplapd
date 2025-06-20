@@ -179,14 +179,14 @@ class TrainingCertRequestView(View):
         confirmation_embed.set_footer(text=f"Requested by {self.user.display_name}")
 
         try:
-            # Send request embed with buttons
+            # Send request embed with buttons and ping FTO role
             view = TrainingCertActionView(
                 user=self.user,
                 certification=select.values[0],
                 original_message=None,
                 history=[f"📝 Submitted by {self.user.display_name} at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"]
             )
-            message = await channel.send(embed=request_embed, view=view)
+            message = await channel.send(content=f"<@&{FTO_ROLE_ID}>", embed=request_embed, view=view)
             view.original_message = message
             await message.edit(view=view)
 
