@@ -277,7 +277,7 @@ class Shift(commands.Cog):
     @commands.hybrid_group(name="shift", description="Manage shift-related actions.")
     async def shift(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
-            await ctx.send("Invalid subcommand. Use `!shift manage`, `!shift leaderboard`, `!shift active`, `!shift wipe`, `!shift admin @user`, or `!shift copylb`.")
+            await ctx.send("Invalid subcommand. Use `!shift manage`, `!shift leaderboard`, `!shift copylb`, `!shift active`, `!shift wipe`, or `!shift admin @user`.")
 
     @shift.command(name="manage", description="Open your shift management panel.")
     @app_commands.describe()
@@ -333,7 +333,7 @@ class Shift(commands.Cog):
         embed.set_footer(text="Shift System")
         await ctx.send(embed=embed)
 
-    @shift.command(name="copylb", description="Copy the replied leaderboard embed and add your data to it.")
+    @shift.command(name="copylb", description="Copy the replied leaderboard embed and add your data to the actual leaderboard.")
     @app_commands.describe()
     async def copylb(self, ctx: commands.Context):
         if not any(r.id in [self.LAPD_PERSONNEL_ROLE, self.LAPD_SENIOR_ROLE] for r in ctx.author.roles):
@@ -387,22 +387,7 @@ class Shift(commands.Cog):
                         time_str = time_str.strip("`")
                         leaderboard.append((name, time_str))
 
-            # Get or create user data
-            udata = self.get_or_create_user(ctx.author.id)
-            total = udata["total"]
-            if udata["onduty"] and not udata["onbreak"]:
-                total += self.now_ts() - udata["start"]
-
-            # Check if user is already in the leaderboard
-            user_in_leaderboard = any(name == ctx.author.display_name for name, _ in leaderboard)
-
-            # Add or update user data
-            if user_in_leaderboard:
-                leaderboard = [(name, self.humanize(total) if name == ctx.author.display_name else time) for name, time in leaderboard]
-            else:
-                leaderboard.append((ctx.author.display_name, self.humanize(total)))
-
-            # Sort leaderboard by total time (requires parsing time strings back to seconds)
+            # Function to convert time string to seconds
             def time_to_seconds(time_str):
                 h, m, s = 0, 0, 0
                 parts = time_str.split()
@@ -415,6 +400,21 @@ class Shift(commands.Cog):
                         s = int(part[:-1])
                 return h * 3600 + m * 60 + s
 
+            # Update self.data with leaderboard data
+            for member in ctx.guild.members:
+                for name, time_str in leaderboard:
+                    if member.display_name == name:
+                        udata = self.get_or_create_user(member.id)
+                        udata["total"] = time_to_seconds(time_str)
+
+            # Add or update the user's data
+            udata = self.get_or_create_user(ctx.author.id)
+            total = udata["total"]
+            if udata["onduty"] and not udata["onbreak"]:
+                total += self.now_ts() - udata["start"]
+            leaderboard.append((ctx.author.display_name, self.humanize(total)))
+
+            # Sort leaderboard by total time
             leaderboard.sort(key=lambda x: time_to_seconds(x[1]), reverse=True)
 
             # Create new description
@@ -424,12 +424,15 @@ class Shift(commands.Cog):
 
             # Create new embed
             embed = discord.Embed(
-                title="Duty Leaderboard (Copied)",
+                title="Duty Leaderboard (Updated)",
                 description=desc,
                 color=discord.Color.gold()
             )
             embed.set_footer(text="Shift System")
             await ctx.send(embed=embed)
+
+            # Log the event
+            await self.log_shift_event(ctx.author, f"copied and updated the leaderboard with their data ({self.humanize(total)}).")
 
         except discord.errors.NotFound:
             await ctx.send(embed=discord.Embed(
