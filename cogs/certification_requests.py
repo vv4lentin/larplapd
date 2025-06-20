@@ -1,6 +1,6 @@
 import discord
 from discord import Embed, Colour, ButtonStyle, Interaction, Member, app_commands
-from discord.ui import Button, View, Select  # Added View to imports
+from discord.ui import Button, View, Select
 from discord.ext import commands
 import logging
 from datetime import datetime, timezone
@@ -110,11 +110,11 @@ class TrainingCertActionView(View):
         )
         status_embed.add_field(name="Link to Request", value=f"[Jump to request]({self.original_message.jump_url})", inline=False)
         status_embed.set_footer(text=f"Issued by {interaction.user.display_name}")
-        await send_message({FTO_ROLE_ID})
-        
+
         try:
             await self.original_message.edit(embed=embed, view=None)
-            await channel.send(content=self.user.mention, embed=status_embed)
+            # Ping the FTO role and mention the user
+            await channel.send(content=f"<@&{FTO_ROLE_ID}> {self.user.mention}", embed=status_embed)
             await interaction.response.send_message(f"Training certification request for {self.certification} denied!", ephemeral=True)
             logger.info(f"Training certification {self.certification} denied for {self.user} by {interaction.user}")
         except Exception as e:
