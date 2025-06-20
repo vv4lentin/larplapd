@@ -290,7 +290,7 @@ class EventsView(View):
                 await interaction.response.send_message("Error: Target channel not found.", ephemeral=True)
                 return
             message = await channel.send(
-                content=f"||<@&1292541838904791040>||\n{interaction.user.display_name} is hosting a **MASS SHIFT**.\n3+ votes required to start\nReact if attending ✅"
+                content=f"||<@&1292541838904791040>||\n{interaction.user.display_name} is hosting a **MASS SHIFT**.\n3+ votes required to start\n SWAT Officers may attend the mass shift as SWAT officer and get promoted.n\React if attending ✅"
             )
             await message.add_reaction("✅")
             await interaction.response.send_message("Mass shift announcement sent successfully!", ephemeral=True)
