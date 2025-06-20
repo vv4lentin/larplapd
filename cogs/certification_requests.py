@@ -13,6 +13,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+FTO_ROLE_ID = 1306458665410236436
+
 # Configuration constants
 CONFIG = {
     "GUILD_IDS": [1292523481539543193],  # Target guild(s)
@@ -108,7 +110,8 @@ class TrainingCertActionView(View):
         )
         status_embed.add_field(name="Link to Request", value=f"[Jump to request]({self.original_message.jump_url})", inline=False)
         status_embed.set_footer(text=f"Issued by {interaction.user.display_name}")
-
+        await send_message({FTO_ROLE_ID})
+        
         try:
             await self.original_message.edit(embed=embed, view=None)
             await channel.send(content=self.user.mention, embed=status_embed)
