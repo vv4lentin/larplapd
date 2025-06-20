@@ -277,7 +277,7 @@ class Shift(commands.Cog):
     @commands.hybrid_group(name="shift", description="Manage shift-related actions.")
     async def shift(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
-            await ctx.send("Invalid subcommand. Use `!shift manage`, `!shift leaderboard`, `!shift active`, `!shift wipe`, or `!shift admin @user`.")
+            await ctx.send("Invalid subcommand. Use `!shift manage`, `!shift leaderboard`, `!shift active`, `!shift wipe`, `!shift admin @user`, or `!shift copylb`.")
 
     @shift.command(name="manage", description="Open your shift management panel.")
     @app_commands.describe()
@@ -332,6 +332,117 @@ class Shift(commands.Cog):
         )
         embed.set_footer(text="Shift System")
         await ctx.send(embed=embed)
+
+    @shift.command(name="copylb", description="Copy the replied leaderboard embed and add your data to it.")
+    @app_commands.describe()
+    async def copylb(self, ctx: commands.Context):
+        if not any(r.id in [self.LAPD_PERSONNEL_ROLE, self.LAPD_SENIOR_ROLE] for r in ctx.author.roles):
+            await ctx.send(embed=discord.Embed(
+                title="No Permission",
+                description="You do not have permission to use this.",
+                color=discord.Color.red()
+            ))
+            return
+
+        # Check if the command is a reply to a message
+        if not ctx.message.reference or not ctx.message.reference.message_id:
+            await ctx.send(embed=discord.Embed(
+                title="No Reply",
+                description="Please reply to a leaderboard message to use this command.",
+                color=discord.Color.red()
+            ))
+            return
+
+        try:
+            # Fetch the replied message
+            replied_message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+            if not replied_message.embeds or replied_message.author != self.bot.user:
+                await ctx.send(embed=discord.Embed(
+                    title="Invalid Leaderboard",
+                    description="The replied message is not a valid leaderboard embed from this bot.",
+                    color=discord.Color.red()
+                ))
+                return
+
+            # Get the leaderboard embed
+            leaderboard_embed = replied_message.embeds[0]
+            if leaderboard_embed.title != "Duty Leaderboard" or not leaderboard_embed.description:
+                await ctx.send(embed=discord.Embed(
+                    title="Invalid Leaderboard",
+                    description="The replied message is not a valid leaderboard embed.",
+                    color=discord.Color.red()
+                ))
+                return
+
+            # Parse the existing leaderboard
+            leaderboard = []
+            lines = leaderboard_embed.description.split("\n")
+            if lines == ["No personnel found."]:
+                leaderboard = []
+            else:
+                for line in lines:
+                    if " — " in line:
+                        name, time_str = line.split(" — ")
+                        name = name.strip("**")
+                        time_str = time_str.strip("`")
+                        leaderboard.append((name, time_str))
+
+            # Get or create user data
+            udata = self.get_or_create_user(ctx.author.id)
+            total = udata["total"]
+            if udata["onduty"] and not udata["onbreak"]:
+                total += self.now_ts() - udata["start"]
+
+            # Check if user is already in the leaderboard
+            user_in_leaderboard = any(name == ctx.author.display_name for name, _ in leaderboard)
+
+            # Add or update user data
+            if user_in_leaderboard:
+                leaderboard = [(name, self.humanize(total) if name == ctx.author.display_name else time) for name, time in leaderboard]
+            else:
+                leaderboard.append((ctx.author.display_name, self.humanize(total)))
+
+            # Sort leaderboard by total time (requires parsing time strings back to seconds)
+            def time_to_seconds(time_str):
+                h, m, s = 0, 0, 0
+                parts = time_str.split()
+                for part in parts:
+                    if part.endswith("h"):
+                        h = int(part[:-1])
+                    elif part.endswith("m"):
+                        m = int(part[:-1])
+                    elif part.endswith("s"):
+                        s = int(part[:-1])
+                return h * 3600 + m * 60 + s
+
+            leaderboard.sort(key=lambda x: time_to_seconds(x[1]), reverse=True)
+
+            # Create new description
+            desc = "\n".join(f"**{n}** — `{t}`" for n, t in leaderboard)
+            if not desc:
+                desc = "No personnel found."
+
+            # Create new embed
+            embed = discord.Embed(
+                title="Duty Leaderboard (Copied)",
+                description=desc,
+                color=discord.Color.gold()
+            )
+            embed.set_footer(text="Shift System")
+            await ctx.send(embed=embed)
+
+        except discord.errors.NotFound:
+            await ctx.send(embed=discord.Embed(
+                title="Error",
+                description="The replied message could not be found.",
+                color=discord.Color.red()
+            ))
+        except Exception as e:
+            await ctx.send(embed=discord.Embed(
+                title="Error",
+                description=f"An error occurred: {str(e)}",
+                color=discord.Color.red()
+            ))
 
     @shift.command(name="active", description="List currently on-duty and on-break members.")
     @app_commands.describe()
