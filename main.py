@@ -9,6 +9,7 @@ from keep_alive import keep_alive  # Assuming this is a custom module for keepin
 
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
+HR_ROLE_IDS = [1324522426771443813, 1339058176003407915]
 
 # Configure bot intents
 intents = discord.Intents.default()
@@ -158,12 +159,15 @@ async def cmdunblock_error(ctx, error):
         await ctx.send("Please specify a command to unblock (e.g., `!cmdunblock command`).")
 
 @bot.command()
+@commands.has_any_role(*HR_ROLE_IDS)
 async def say(ctx, *, message: str):
     try:
         await ctx.message.delete()
         await ctx.send(message)
     except discord.Forbidden:
         await ctx.send("❌ I don't have permission to delete messages.", delete_after=5)
+    except commands.MissingAnyRole:
+        await ctx.send("❌ You don't have the required role to use this command.", delete_after=5)
 
 @bot.command(name="announce")
 async def announce(ctx, *, message: str):
