@@ -31,27 +31,13 @@ blocked_commands = set()  # Track blocked commands
 # Track bot uptime
 bot.uptime = datetime.utcnow()
 
-# Load blocked commands from JSON
-def load_blocked_commands():
-    global blocked_commands
-    try:
-        with open("blocked_commands.json", "r") as f:
-            blocked_commands = set(json.load(f))
-    except FileNotFoundError:
-        blocked_commands = set()
-
-# Save blocked commands to JSON
-def save_blocked_commands():
-    with open("blocked_commands.json", "w") as f:
-        json.dump(list(blocked_commands), f)
-
 # Global check for sleep mode
 @bot.check
 async def block_commands_in_sleep_mode(ctx):
     if not sleep_mode:
         return True  # Allow commands if not in sleep mode
     # Allow !start and Jishaku commands for bot owner
-    if ctx.command.name == "start" or ctx.command.qualified_name.startswith("jsk"):
+    if ctx.command.name == "start" or "jsk shutdown":
         if await bot.is_owner(ctx.author):
             return True  # Allow command for owner
     # Create embed for sleep mode response
@@ -63,100 +49,6 @@ async def block_commands_in_sleep_mode(ctx):
     embed.set_footer(text=f"Command used: {ctx.command.name} | User ID: {ctx.author.id}")
     await ctx.send(embed=embed)
     return False  # Block all other commands
-
-# Global check for blocked commands
-@bot.check
-async def block_commands(ctx):
-    if ctx.command.name in blocked_commands:
-        embed = discord.Embed(
-            title="Command no longer used",
-            description="This command is still there but can’t be used, it will be removed from the bot soon.",
-            color=discord.Color.yellow()
-        )
-        embed.add_field(name="Command", value=f"`!{ctx.command.name}`", inline=False)
-        embed.set_footer(text=f"Used by {ctx.author.name} ({ctx.author.id})")
-        await ctx.send(embed=embed)
-        return False  # Block the command
-    return True
-
-# Block command
-@bot.command()
-@commands.has_permissions(administrator=True)  # Restrict to admins
-async def blockcmd(ctx, command_name: str):
-    # Remove leading '!' if included
-    command_name = command_name.lstrip("!")
-    
-    # Check if command exists
-    if not bot.get_command(command_name):
-        await ctx.send(f"Command `!{command_name}` does not exist!")
-        return
-    
-    # Check if already blocked
-    if command_name in blocked_commands:
-        await ctx.send(f"Command `!{command_name}` is already blocked!")
-        return
-    
-    # Add to blocked commands
-    blocked_commands.add(command_name)
-    save_blocked_commands()  # Save to JSON
-    
-    # Create embed
-    embed = discord.Embed(
-        title="Command no longer used",
-        description="This command is still there but can’t be used, it will be removed from the bot soon.",
-        color=discord.Color.yellow()
-    )
-    embed.add_field(name="Command", value=f"`!{command_name}`", inline=False)
-    embed.set_footer(text=f"Used by {ctx.author.name} ({ctx.author.id})")
-    
-    await ctx.send(embed=embed)
-
-# Unblock command
-@bot.command()
-@commands.has_permissions(administrator=True)  # Restrict to admins
-async def cmdunblock(ctx, command_name: str):
-    # Remove leading '!' if included
-    command_name = command_name.lstrip("!")
-    
-    # Check if command exists
-    if not bot.get_command(command_name):
-        await ctx.send(f"Command `!{command_name}` does not exist!")
-        return
-    
-    # Check if not blocked
-    if command_name not in blocked_commands:
-        await ctx.send(f"Command `!{command_name}` is not blocked!")
-        return
-    
-    # Remove from blocked commands
-    blocked_commands.remove(command_name)
-    save_blocked_commands()  # Save to JSON
-    
-    # Create embed
-    embed = discord.Embed(
-        title="Command Unblocked",
-        description=f"The command `!{command_name}` has been unblocked and can now be used.",
-        color=discord.Color.green()
-    )
-    embed.add_field(name="Command", value=f"`!{command_name}`", inline=False)
-    embed.set_footer(text=f"Used by {ctx.author.name} ({ctx.author.id})")
-    
-    await ctx.send(embed=embed)
-
-# Error handling for blockcmd and cmdunblock
-@blockcmd.error
-async def blockcmd_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You need administrator permissions to use this command!")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Please specify a command to block (e.g., `!blockcmd command`).")
-
-@cmdunblock.error
-async def cmdunblock_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You need administrator permissions to use this command!")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Please specify a command to unblock (e.g., `!cmdunblock command`).")
 
 @bot.command()
 @commands.has_any_role(*HR_ROLE_IDS)
@@ -213,18 +105,14 @@ async def load_extensions():
     global loaded_cogs
     cogs = [
         "cogs.jishaku",
-        "cogs.lapdmanage",
         "cogs.trainingevents",
         "cogs.support",
         "cogs.lapd",
         "cogs.bot",
-        "cogs.swatmanage",
         "cogs.embedbuilder",
         "cogs.panel",
-        "cogs.commandsban",
         "cogs.certification_requests",
         "cogs.shift",
-        "cogs.prcutilities",
         "cogs.assignto"
     ]
     for cog in cogs:
