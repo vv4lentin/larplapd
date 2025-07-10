@@ -274,7 +274,6 @@ async def start(ctx):
         await ctx.send(f"Error activating bot: {e}")
 
 async def main():
-    load_blocked_commands()  # Load blocked commands at startup
     await load_extensions()
     keep_alive()
     try:
