@@ -28,7 +28,6 @@ class CancelButton(View):
         button.disabled = True
         await interaction.message.edit(view=self)
 
-# Modal for Training Announcement
 class TrainingModal(Modal, title="Training Announcement"):
     def __init__(self):
         super().__init__()
@@ -72,7 +71,6 @@ class TrainingModal(Modal, title="Training Announcement"):
         embed = Embed(description="Training announcement sent successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for SWAT Training Announcement
 class SWATTrainingModal(Modal, title="SWAT Training Announcement"):
     def __init__(self):
         super().__init__()
@@ -116,7 +114,6 @@ class SWATTrainingModal(Modal, title="SWAT Training Announcement"):
         embed = Embed(description="SWAT Training announcement sent successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for Orientation Announcement
 class OrientationModal(Modal, title="Orientation Announcement"):
     def __init__(self):
         super().__init__()
@@ -160,7 +157,6 @@ class OrientationModal(Modal, title="Orientation Announcement"):
         embed = Embed(description="Orientation announcement sent successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for Log Orientation Result
 class LogOrientationModal(Modal, title="Log Orientation Result"):
     def __init__(self, trainee: Member):
         super().__init__()
@@ -194,7 +190,6 @@ class LogOrientationModal(Modal, title="Log Orientation Result"):
         embed = Embed(description="Orientation result logged successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for Log Training Result
 class LogTrainingModal(Modal, title="Log Training Result"):
     def __init__(self, trainee: Member):
         super().__init__()
@@ -229,7 +224,6 @@ class LogTrainingModal(Modal, title="Log Training Result"):
         embed = Embed(description="Training result logged successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for Log SWAT Training Result
 class LogSWATTrainingModal(Modal, title="Log SWAT Training Result"):
     def __init__(self, trainee: Member):
         super().__init__()
@@ -263,7 +257,6 @@ class LogSWATTrainingModal(Modal, title="Log SWAT Training Result"):
         embed = Embed(description="SWAT Training result logged successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for Log Certification
 class LogCertificationModal(Modal, title="Log Certification"):
     def __init__(self, trainee: Member):
         super().__init__()
@@ -300,7 +293,6 @@ class LogCertificationModal(Modal, title="Log Certification"):
         embed = Embed(description="Certification logged successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for Log Mass Shift Result
 class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
     def __init__(self):
         super().__init__()
@@ -338,7 +330,6 @@ class LogMassShiftModal(Modal, title="Log Mass Shift Result"):
         embed = Embed(description="Mass shift result logged successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Modal for Log SWAT Deployment Result
 class LogSWATDeploymentModal(Modal, title="Log SWAT Deployment Result"):
     def __init__(self):
         super().__init__()
@@ -376,7 +367,6 @@ class LogSWATDeploymentModal(Modal, title="Log SWAT Deployment Result"):
         embed = Embed(description="SWAT deployment result logged successfully!", colour=Colour.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# View for Event Announcements
 class EventsView(View):
     def __init__(self):
         super().__init__(timeout=60)
@@ -447,7 +437,6 @@ class EventsView(View):
             embed = Embed(description=f"Error sending SWAT Deployment announcement: {str(e)}", colour=Colour.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# View for Result Logging
 class ResultView(View):
     def __init__(self, trainee: Member = None):
         super().__init__(timeout=60)
