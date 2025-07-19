@@ -6,18 +6,17 @@ import uuid
 class EmbedBuilder(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.default_color = discord.Color.blue()  # Default embed color
-        self.default_thumbnail = None  # Optional: Set a default thumbnail URL
-        self.embed_store = {}  # In-memory storage for copied embeds
+        self.default_color = discord.Color.blue()  
+        self.default_thumbnail = None 
+        self.embed_store = {}  
 
     class EmbedModal(discord.ui.Modal, title="Create Custom Embed"):
         def __init__(self, default_color, default_thumbnail, embed_id=None, existing_embed=None):
-            super().__init__()  # No timeout for modal
+            super().__init__()  
             self.default_color = default_color
             self.default_thumbnail = default_thumbnail
             self.embed_id = embed_id
 
-            # Pre-fill fields if modifying an existing embed
             default_title = existing_embed.title if existing_embed else ""
             default_description = existing_embed.description if existing_embed else ""
             default_footer = existing_embed.footer.text if existing_embed and existing_embed.footer else ""
@@ -68,7 +67,6 @@ class EmbedBuilder(commands.Cog):
             self.add_item(self.color)
 
         async def on_submit(self, interaction: discord.Interaction):
-            # Validate color
             color = self.default_color
             if self.color.value:
                 try:
@@ -86,18 +84,15 @@ class EmbedBuilder(commands.Cog):
                         ephemeral=True
                     )
 
-            # Create embed
             embed = discord.Embed(
                 title=self.name.value,
                 description=self.description.value,
                 color=color
             )
 
-            # Set footer if provided
             if self.footer.value:
                 embed.set_footer(text=self.footer.value)
 
-            # Set thumbnail if provided and valid
             thumbnail_url = self.thumbnail.value or self.default_thumbnail
             if thumbnail_url:
                 if re.match(r'^https?://[^\s<>"\'\[\]]+\.(?:png|jpg|jpeg|gif|webp)$', thumbnail_url, re.IGNORECASE):
@@ -108,7 +103,6 @@ class EmbedBuilder(commands.Cog):
                         ephemeral=True
                     )
 
-            # Check embed size limits
             total_length = len(self.name.value) + len(self.description.value) + (len(self.footer.value) if self.footer.value else 0)
             if total_length > 6000:
                 await interaction.response.send_message(
@@ -117,11 +111,9 @@ class EmbedBuilder(commands.Cog):
                 )
                 return
 
-            # Store embed if it has an ID (for modify or copy)
             if self.embed_id:
                 self.cog.embed_store[self.embed_id] = embed
 
-            # Send embed and confirmation
             await interaction.channel.send(embed=embed)
             await interaction.response.send_message(
                 f"Embed {'modified' if self.embed_id else 'created'} successfully! Embed ID: {self.embed_id or str(uuid.uuid4())}",
@@ -136,7 +128,7 @@ class EmbedBuilder(commands.Cog):
 
     class EmbedButton(discord.ui.View):
         def __init__(self, default_color, default_thumbnail, cog):
-            super().__init__()  # No timeout for view
+            super().__init__() 
             self.default_color = default_color
             self.default_thumbnail = default_thumbnail
             self.cog = cog
@@ -144,12 +136,12 @@ class EmbedBuilder(commands.Cog):
         @discord.ui.button(label="Create Embed", style=discord.ButtonStyle.primary, custom_id=f"embed_button_{uuid.uuid4()}")
         async def create_embed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
             modal = self.cog.EmbedModal(self.default_color, self.default_thumbnail)
-            modal.cog = self.cog  # Pass cog instance to modal
+            modal.cog = self.cog 
             await interaction.response.send_modal(modal)
 
     class ModifyButton(discord.ui.View):
         def __init__(self, default_color, default_thumbnail, embed_id, embed, cog):
-            super().__init__()  # No timeout for view
+            super().__init__()
             self.default_color = default_color
             self.default_thumbnail = default_thumbnail
             self.embed_id = embed_id
@@ -159,7 +151,7 @@ class EmbedBuilder(commands.Cog):
         @discord.ui.button(label="Modify Embed", style=discord.ButtonStyle.secondary, custom_id=f"modify_button_{uuid.uuid4()}")
         async def modify_embed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
             modal = self.cog.EmbedModal(self.default_color, self.default_thumbnail, self.embed_id, self.embed)
-            modal.cog = self.cog  # Pass cog instance to modal
+            modal.cog = self.cog  
             await interaction.response.send_modal(modal)
 
     @commands.command(name="embed")
@@ -228,3 +220,4 @@ class EmbedBuilder(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(EmbedBuilder(bot))
+
