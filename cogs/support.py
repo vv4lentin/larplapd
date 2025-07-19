@@ -199,6 +199,12 @@ class Support(commands.Cog):
         self.bot = bot
         self.ticket_data = {}  # In-memory storage, no JSON
 
+    def is_valid_ticket_channel(self, channel: discord.TextChannel) -> bool:
+        """Check if the channel is a valid ticket channel based on category."""
+        if not isinstance(channel, discord.TextChannel) or not channel.category:
+            return False
+        return channel.category.id in CONFIG["ticket_categories"].values()
+
     async def create_ticket(self, interaction: discord.Interaction, ticket_type: str):
         if ticket_type not in TICKET_TYPE_MAPPING:
             await interaction.response.send_message("Invalid ticket type.", ephemeral=True)
@@ -275,7 +281,7 @@ class Support(commands.Cog):
         except Exception as e:
             logger.error(f"Unexpected error creating ticket channel: {str(e)}\n{traceback.format_exc()}")
             await interaction.response.send_message("Failed to create ticket channel. Please try again.", ephemeral=True)
-            return
+        return
 
         self.ticket_data[channel.id] = {
             "owner": interaction.user,
@@ -294,7 +300,6 @@ class Support(commands.Cog):
         embed.add_field(name="Ticket Type", value=TICKET_TYPE_MAPPING[ticket_type]["display"], inline=True)
         embed.add_field(name="Created By", value=interaction.user.mention, inline=True)
         embed.add_field(name="Status", value="Open", inline=True)
-        embed.set_footer(text=f"Ticket ID: {channel.id}")
 
         view = TicketActionView(self, self.ticket_data[channel.id])
         content = f"{interaction.user.mention} {role_mention}".strip()
@@ -325,7 +330,6 @@ class Support(commands.Cog):
                     color=discord.Color.blue(),
                     timestamp=datetime.now()
                 )
-                embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
                 ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
                 embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
                 await log_channel.send(embed=embed, file=file)
@@ -369,7 +373,6 @@ class Support(commands.Cog):
             color=discord.Color.orange(),
             timestamp=datetime.now()
         )
-        embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
         embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
         view = CloseActionView(self, ticket_data)
         await interaction.response.send_message(embed=embed, view=view)
@@ -385,7 +388,6 @@ class Support(commands.Cog):
                 color=discord.Color.blue(),
                 timestamp=datetime.now()
             )
-            embed.add_field(name="Ticket ID", value=str(channel.id), inline=True)
             ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
             embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
             try:
@@ -429,7 +431,7 @@ class Support(commands.Cog):
 
     @commands.command()
     async def close(self, ctx: commands.Context):
-        if ctx.channel.id not in self.ticket_data:
+        if not self.is_valid_ticket_channel(ctx.channel):
             await ctx.send("This is not a ticket channel.")
             return
         embed = discord.Embed(
@@ -443,29 +445,55 @@ class Support(commands.Cog):
 
     @commands.command()
     async def add(self, ctx: commands.Context, member: discord.Member):
-        if ctx.channel.id not in self.ticket_data:
+        if not self.is_valid_ticket_channel(ctx.channel):
             await ctx.send("This is not a ticket channel.")
             return
+        ticket_data = self.ticket_data.get(ctx.channel.id, {})
+        if not ticket_data:
+            await ctx.send("This channel is not registered as a ticket.")
+            return
+        if ticket_data["status"] == "closed":
+            await ctx.send("This ticket is closed and cannot have members added.")
+            return
         try:
-            await ctx.channel.edit_permissions(member, read_messages=True, send_messages=True)
+            await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
             await ctx.send(f"Added {member.mention} to the ticket.")
             await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
+        except discord.errors.Forbidden:
+            logger.error(f"Bot lacks permission to add {member} to channel {ctx.channel.name}")
+            await ctx.send("❌ Bot lacks permission to add members to this channel.")
         except Exception as e:
-            logger.error(f"Error adding member: {str(e)}\n{traceback.format_exc()}")
-            await ctx.send("❌ Error adding member.")
+            logger.error(f"Error adding member {member} to channel {ctx.channel.name}: {str(e)}\n{traceback.format_exc()}")
+            await ctx.send(f"❌ Error adding member: {str(e)}")
 
     @commands.command()
     async def remove(self, ctx: commands.Context, member: discord.Member):
-        if ctx.channel.id not in self.ticket_data:
+        if not self.is_valid_ticket_channel(ctx.channel):
             await ctx.send("This is not a ticket channel.")
             return
+        ticket_data = self.ticket_data.get(ctx.channel.id, {})
+        if not ticket_data:
+            await ctx.send("This channel is not registered as a ticket.")
+            return
+        if ticket_data["status"] == "closed":
+            await ctx.send("This ticket is closed and cannot have members removed.")
+            return
+        if member == ticket_data.get("owner"):
+            await ctx.send("You cannot remove the ticket owner.")
+            return
+        if member == ticket_data.get("claimed_by"):
+            await ctx.send("You cannot remove the ticket claimer.")
+            return
         try:
-            await ctx.channel.edit_permissions(member, overwrite=None)
+            await ctx.channel.set_permissions(member, read_messages=False, send_messages=False)
             await ctx.send(f"Removed {member.mention} from the ticket.")
             await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
+        except discord.errors.Forbidden:
+            logger.error(f"Bot lacks permission to remove {member} from channel {ctx.channel.name}")
+            await ctx.send("❌ Bot lacks permission to remove members from this channel.")
         except Exception as e:
-            logger.error(f"Error removing member: {str(e)}\n{traceback.format_exc()}")
-            await ctx.send("❌ Error removing member.")
+            logger.error(f"Error removing member {member} from channel {ctx.channel.name}: {str(e)}\n{traceback.format_exc()}")
+            await ctx.send(f"❌ Error removing member: {str(e)}")
 
 async def setup(bot):
     await bot.add_cog(Support(bot))
