@@ -6,7 +6,6 @@ import logging
 from datetime import datetime, timezone
 from typing import List
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s: %(message)s"
@@ -15,19 +14,17 @@ logger = logging.getLogger(__name__)
 
 FTO_ROLE_ID = 1306458665410236436
 
-# Configuration constants
 CONFIG = {
-    "GUILD_IDS": [1292523481539543193],  # Target guild(s)
-    "REQUEST_CHANNEL_ID": 1383124547900936242,  # Channel for training request embeds
-    "STATUS_CHANNEL_ID": 1304472122646859797,  # Channel for status embeds
-    "ALLOWED_ROLE_ID": None,  # Set to a role ID to restrict command access; None for no restriction
-    "THUMBNAIL_URL": "https://i.imgur.com/example.png"  # Replace with your image URL
+    "GUILD_IDS": [1292523481539543193],  
+    "REQUEST_CHANNEL_ID": 1383124547900936242,  
+    "STATUS_CHANNEL_ID": 1304472122646859797,  
+    "ALLOWED_ROLE_ID": None,  
 }
 
-# View for Training Certification Request Buttons (Accept/Deny)
+
 class TrainingCertActionView(View):
     def __init__(self, user: Member, certification: str, original_message: discord.Message, history: List[str]):
-        super().__init__(timeout=None)  # Persistent view
+        super().__init__(timeout=None) 
         self.user = user
         self.certification = certification
         self.original_message = original_message
@@ -41,9 +38,7 @@ class TrainingCertActionView(View):
             await interaction.response.send_message("Error: Status channel not found.", ephemeral=True)
             return
 
-        # Update history
         self.history.append(f"✅ Accepted by {interaction.user.display_name} at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
-        # Update original embed
         embed = Embed(
             title="Certification Training Request",
             description="**Status: Accepted ✅**",
@@ -57,7 +52,6 @@ class TrainingCertActionView(View):
         embed.set_thumbnail(url=CONFIG["THUMBNAIL_URL"])
         embed.set_footer(text=f"Requested by {self.user.display_name}")
 
-        # Send status embed
         status_embed = Embed(
             title="Training Certification Status",
             description=f"Training certification request for **{self.certification}** has been **accepted** by **{interaction.user.display_name}**.",
@@ -85,9 +79,7 @@ class TrainingCertActionView(View):
             await interaction.response.send_message("Error: Status channel not found.", ephemeral=True)
             return
 
-        # Update history
         self.history.append(f"❌ Denied by {interaction.user.display_name} at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
-        # Update original embed
         embed = Embed(
             title="Certification Training Request",
             description="**Status: Denied ❌**",
@@ -101,7 +93,6 @@ class TrainingCertActionView(View):
         embed.set_thumbnail(url=CONFIG["THUMBNAIL_URL"])
         embed.set_footer(text=f"Requested by {self.user.display_name}")
 
-        # Send status embed
         status_embed = Embed(
             title="Training Certification Status",
             description=f"Training certification request for **{self.certification}** has been **denied** by **{interaction.user.display_name}**.",
@@ -113,7 +104,6 @@ class TrainingCertActionView(View):
 
         try:
             await self.original_message.edit(embed=embed, view=None)
-            # Ping the FTO role and mention the user
             await channel.send(content=f"<@&{FTO_ROLE_ID}> {self.user.mention}", embed=status_embed)
             await interaction.response.send_message(f"Training certification request for {self.certification} denied!", ephemeral=True)
             logger.info(f"Training certification {self.certification} denied for {self.user} by {interaction.user}")
@@ -122,7 +112,6 @@ class TrainingCertActionView(View):
             await interaction.response.send_message(f"Error processing deny: {str(e)}", ephemeral=True)
         self.stop()
 
-# View for Training Certification Request Dropdown
 class TrainingCertRequestView(View):
     def __init__(self, user: Member, when: str):
         super().__init__(timeout=60)
@@ -153,7 +142,6 @@ class TrainingCertRequestView(View):
             await interaction.response.send_message("Error: Request channel not found.", ephemeral=True)
             return
 
-        # Create training request embed
         request_embed = Embed(
             title="Certification Training Request",
             description="**Status: Pending ⏳**",
@@ -167,11 +155,10 @@ class TrainingCertRequestView(View):
         request_embed.set_thumbnail(url=CONFIG["THUMBNAIL_URL"])
         request_embed.set_footer(text=f"Requested by {self.user.display_name}")
 
-        # Create confirmation embed
         confirmation_embed = Embed(
             title="✅ Training Certification Request Submitted",
             description=f"Your training certification request for **{select.values[0]}** has been sent to {channel.mention}!",
-            color=Colour.from_rgb(46, 204, 113),  # Emerald green
+            color=Colour.from_rgb(46, 204, 113), 
             timestamp=datetime.now(timezone.utc)
         )
         confirmation_embed.add_field(name="Training Certification", value=select.values[0], inline=False)
@@ -179,7 +166,6 @@ class TrainingCertRequestView(View):
         confirmation_embed.set_footer(text=f"Requested by {self.user.display_name}")
 
         try:
-            # Send request embed with buttons and ping FTO role
             view = TrainingCertActionView(
                 user=self.user,
                 certification=select.values[0],
@@ -190,7 +176,6 @@ class TrainingCertRequestView(View):
             view.original_message = message
             await message.edit(view=view)
 
-            # Send confirmation embed
             await interaction.response.send_message(embed=confirmation_embed, ephemeral=True)
             logger.info(f"Training certification request for {select.values[0]} sent by {self.user} to channel {CONFIG['REQUEST_CHANNEL_ID']}")
         except Exception as e:
@@ -198,7 +183,6 @@ class TrainingCertRequestView(View):
             await interaction.response.send_message(f"Error sending training certification request: {str(e)}", ephemeral=True)
         self.stop()
 
-# Certification Training Requests Cog
 class CertsRequests(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -222,7 +206,7 @@ class CertsRequests(commands.Cog):
         description="Request a training certification with a specified time."
     )
     @app_commands.describe(time="Time for the training certification request (e.g., '1d', '2025-06-15')")
-    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown
+    @commands.cooldown(1, 60, commands.BucketType.user)
     async def requestcerts(self, ctx: commands.Context, time: str):
         try:
             if not ctx.guild:
@@ -230,7 +214,6 @@ class CertsRequests(commands.Cog):
                 logger.error(f"requestcerts command attempted in DM by {ctx.author}")
                 return
 
-            # Role check
             if CONFIG["ALLOWED_ROLE_ID"]:
                 role = ctx.guild.get_role(CONFIG["ALLOWED_ROLE_ID"])
                 if not role or role not in ctx.author.roles:
@@ -238,7 +221,6 @@ class CertsRequests(commands.Cog):
                     logger.info(f"Unauthorized requestcerts attempt by {ctx.author} in guild {ctx.guild.id}")
                     return
 
-            # Time validation
             if not time or len(time) > 50:
                 await ctx.send("🚫 Invalid time format. Please provide a valid time (e.g., '1d', '2025-06-15').", ephemeral=True)
                 logger.info(f"Invalid time input '{time}' by {ctx.author} in guild {ctx.guild.id}")
@@ -291,3 +273,4 @@ class CertsRequests(commands.Cog):
 async def setup(bot):
     await bot.add_cog(CertsRequests(bot))
     logger.info("CertificationTrainingRequests cog added to bot")
+
