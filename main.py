@@ -265,7 +265,7 @@ async def start(ctx):
 
 async def main():
     await load_extensions()
-    await keep_alive()
+    keep_alive()
     try:
         await bot.start(os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA")
     except Exception as e:
