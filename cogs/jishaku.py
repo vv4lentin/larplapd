@@ -251,7 +251,7 @@ class Jishaku(commands.Cog):
                     await ctx.send("Failed to send file. Ensure the bot has permissions to send files.")
                 except discord.HTTPException as e:
                     logger.error(f"Failed to send file: {e}")
-            await ctx.send(f"Failed to send file: {str(e)}")
+                    await ctx.send(f"Failed to send file: {str(e)}")
         except OSError as e:
             logger.error(f"Failed to write file {filename}: {e}")
             await ctx.send(f"Failed to send file: {e}")
@@ -281,118 +281,23 @@ class Jishaku(commands.Cog):
         logger.info(f"{ctx.author} invoked jsk command")
         prefix = ctx.prefix
         commands_list = [
-            f"- `{prefix}jsk_shutdown` - Shut down the bot.",
-            f"- `{prefix}jsk_restart` - Restart the bot.",
-            f"- `{prefix}jsk_update` - Update bot code and restart.",
-            f"- `{prefix}jsk_load` - Load a cog.",
-            f"- `{prefix}jsk_unload` - Unload a cog.",
-            f"- `{prefix}jsk_reload` - Reload a cog.",
-            f"- `{prefix}jsk_reloadall` - Reload all cogs.",
-            f"- `{prefix}jsk_sync` - Sync or manage command tree.",
-            f"- `{prefix}jsk_owners` - Manage bot owners.",
-            f"- `{prefix}jsk_guilds` - List all guilds the bot is in.",
-            f"- `{prefix}jsk_status` - Show bot status.",
-            f"- `{prefix}jsk_extensions` - List all available cog files.",
-            f"- `{prefix}jsk_test` - Test bot responsiveness.",
-            f"- `{prefix}jsk_backup` - Create a code backup.",
-            f"- `{prefix}jsk_invite` - Generate bot invite link.",
-            f"- `{prefix}jsk_perms` - Check bot permissions.",
-            f"- `{prefix}jsk_logs` - Show recent bot logs.",
-            f"- `{prefix}jsk_clear` - Clear messages in the channel.",
-            f"- `{prefix}jsk_ratelimits` - Show or reset command rate limits.",
-            f"- `{prefix}jsk_source` - Show source code of a command, cog, or module."
+            f"- `{prefix}jsk reload <cog>` - Reload a cog.",
+            f"- `{prefix}jsk reloadall` - Reload all cogs.",
+            f"- `{prefix}jsk load <cog>` - Load a cog.",
+            f"- `{prefix}jsk unload <cog>` - Unload a specific cog.",
+            f"- `{prefix}jsk restart` - Restart the bot.",
+            f"- `{prefix}jsk shutdown` - Shut down the bot.",
+            f"- `{prefix}jsk owners` - Manage bot owners.",
+            f"- `{prefix}jsk invite` - Generate a bot invite link.",
+            f"- `{prefix}jsk backup` - Create a code backup.",
+            f"- `{prefix}jsk status` - Show bot status.",
+            f"- `{prefix}jsk latency` - Show bot latency.",
+            f"- `{prefix}jsk extensions` - List available cogs.",
+            f"- `{prefix}jsk shell <command>` - Execute a shell command.",
+            f"- `{prefix}jsk execute <code>` - Execute Python code."
         ]
         await self._send_paginated(ctx, commands_list, "Jishaku Debugging Commands")
         logger.info(f"{ctx.author} received jsk command list embed")
-
-    @jishaku.command(name="shutdown", aliases=["stop"])
-    async def jsk_shutdown(self, ctx):
-        try:
-            await ctx.send("Shutting down...")
-            logger.info(f"{ctx.author} initiated shutdown")
-            await self.bot.close()
-        except discord.Forbidden as e:
-            logger.error(f"Failed to send shutdown message: {e}")
-            await self.bot.close()
-
-    @jishaku.command(name="restart")
-    async def jsk_restart(self, ctx):
-        try:
-            await ctx.send("Restarting...")
-            logger.info(f"{ctx.author} initiated restart")
-            with open("restart.json", "w", encoding="utf-8") as f:
-                json.dump({"channel_id": ctx.channel.id}, f)
-            try:
-                python = sys.executable
-                os.execl(python, python, *sys.argv)
-            except Exception as e:
-                logger.error(f"os.execl failed: {e}. Falling back to subprocess.")
-                subprocess.Popen([sys.executable] + sys.argv)
-                await self.bot.close()
-        except discord.Forbidden as e:
-            logger.error(f"Failed to send restart message: {e}")
-            await self.bot.close()
-
-    @jishaku.command(name="update")
-    async def jsk_update(self, ctx):
-        async with ctx.typing():
-            try:
-                process = await asyncio.create_subprocess_shell(
-                    "git pull",
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                )
-                try:
-                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60.0)
-                except asyncio.TimeoutError:
-                    process.kill()
-                    await ctx.send("Git pull timed out after 60 seconds.")
-                    await self._report_error(ctx, "Git pull timeout", "jsk update")
-                    return
-                output = (stdout + stderr).decode("utf-8", errors="replace")
-                await self._send_file(ctx, output, "git_output.txt")
-                if process.returncode == 0:
-                    await self.jsk_restart(ctx)
-                else:
-                    await ctx.send("Git pull failed; not restarting.")
-            except (subprocess.SubprocessError, OSError) as e:
-                await ctx.send(f"Error executing git pull:\n```py\n{str(e)}\n```")
-                await self._report_error(ctx, str(e), "jsk update")
-                logger.error(f"Git pull failed: {e}")
-
-    @jishaku.command(name="load")
-    async def jsk_load(self, ctx, *, cog: str):
-        if not cog:
-            await ctx.send("Please specify a cog to load.")
-            return
-        try:
-            await self.bot.load_extension(cog)
-            await ctx.send(f"Successfully loaded cog: `{cog}`")
-            logger.info(f"{ctx.author} loaded cog: {cog}")
-        except commands.ExtensionError as e:
-            await ctx.send(f"Failed to load cog `{cog}`:\n```py\n{str(e)}\n```")
-            await self._report_error(ctx, str(e), "jsk load")
-            logger.error(f"Failed to load cog {cog}: {e}")
-
-    @jishaku.command(name="unload")
-    async def jsk_unload(self, ctx, *, cog: str):
-        if not cog:
-            await ctx.send("Please specify a cog to unload.")
-            return
-        if cog == "cogs.jishaku":
-            await ctx.send("Cannot unload the Jishaku cog!")
-            return
-        if cog not in self.bot.extensions:
-            await ctx.send(f"Cog `{cog}` is not loaded. Use `jsk extensions` to see loaded cogs.")
-            return
-        try:
-            await self.bot.unload_extension(cog)
-            await ctx.send(f"Successfully unloaded cog: `{cog}`")
-            logger.info(f"{ctx.author} unloaded cog: {cog}")
-        except commands.ExtensionError as e:
-            await ctx.send(f"Failed to unload cog `{cog}`:\n```py\n{str(e)}\n```")
-            await self._report_error(ctx, str(e), "jsk unload")
-            logger.error(f"Failed to unload cog {cog}: {e}")
 
     @jishaku.command(name="reload")
     async def jsk_reload(self, ctx, *, cog: str):
@@ -400,7 +305,7 @@ class Jishaku(commands.Cog):
             await ctx.send("Please specify a cog to reload.")
             return
         if cog not in self.bot.extensions:
-            await ctx.send(f"Cog `{cog}` is not loaded. Use `jsk extensions` to see loaded cogs.")
+            await ctx.send(f"Cog `{cog}` is not loaded. Use `jsk load` to load it.")
             return
         try:
             await self.bot.reload_extension(cog)
@@ -428,46 +333,67 @@ class Jishaku(commands.Cog):
             await self._send_paginated(ctx, results, "Reload All Cogs")
             logger.info(f"{ctx.author} reloaded all cogs")
 
-    @jishaku.command(name="sync")
-    async def jsk_sync(self, ctx, action: str = "sync", guild_id: int = None):
-        async with ctx.typing():
+    @jishaku.command(name="load")
+    async def jsk_load(self, ctx, *, cog: str):
+        if not cog:
+            await ctx.send("Please specify a cog to load.")
+            return
+        try:
+            await self.bot.load_extension(cog)
+            await ctx.send(f"Successfully loaded cog: `{cog}`")
+            logger.info(f"{ctx.author} loaded cog: {cog}")
+        except commands.ExtensionError as e:
+            await ctx.send(f"Failed to load cog `{cog}`:\n```py\n{str(e)}\n```")
+            await self._report_error(ctx, str(e), "jsk load")
+            logger.error(f"Failed to load cog {cog}: {e}")
+
+    @jishaku.command(name="unload")
+    async def jsk_unload(self, ctx, *, cog: str):
+        if not cog:
+            await ctx.send("Please specify a cog to unload.")
+            return
+        if cog == "cogs.jishaku":
+            await ctx.send("Cannot unload the Jishaku cog!")
+            return
+        if cog not in self.bot.extensions:
+            await ctx.send(f"Cog `{cog}` is not loaded.")
+            return
+        try:
+            await self.bot.unload_extension(cog)
+            await ctx.send(f"Successfully unloaded cog: `{cog}`")
+            logger.info(f"{ctx.author} unloaded cog: {cog}")
+        except commands.ExtensionError as e:
+            await ctx.send(f"Failed to unload cog `{cog}`:\n```py\n{str(e)}\n```")
+            await self._report_error(ctx, str(e), "jsk unload")
+            logger.error(f"Failed to unload cog {cog}: {e}")
+
+    @jishaku.command(name="restart")
+    async def jsk_restart(self, ctx):
+        try:
+            await ctx.send("Restarting...")
+            logger.info(f"{ctx.author} initiated restart")
+            with open("restart.json", "w", encoding="utf-8") as f:
+                json.dump({"channel_id": ctx.channel.id}, f)
             try:
-                if not ctx.guild.me.guild_permissions.manage_guild:
-                    await ctx.send("Bot lacks `Manage Guild` permission to sync commands.")
-                    return
-                if action.lower() == "sync":
-                    if guild_id:
-                        guild = self.bot.get_guild(guild_id)
-                        if not guild:
-                            await ctx.send(f"Guild ID `{guild_id}` not found.")
-                            return
-                        self.bot.tree.copy_global_to(guild=guild)
-                        await self.bot.tree.sync(guild=guild)
-                        await ctx.send(f"Command tree synced for guild ID: `{guild_id}`")
-                    else:
-                        await self.bot.tree.sync()
-                        await ctx.send("Global command tree synced.")
-                elif action.lower() == "clear":
-                    if guild_id:
-                        guild = self.bot.get_guild(guild_id)
-                        if not guild:
-                            await ctx.send(f"Guild ID `{guild_id}` not found.")
-                            return
-                        self.bot.tree.clear_commands(guild=guild)
-                        await ctx.send(f"Command tree cleared for guild ID: `{guild_id}`")
-                    else:
-                        self.bot.tree.clear_commands(guild=None)
-                        await ctx.send("Global command tree cleared.")
-                elif action.lower() == "list":
-                    commands = [f"- {cmd.name}" for cmd in self.bot.tree.get_commands()]
-                    await self._send_paginated(ctx, commands, "Registered Slash Commands")
-                else:
-                    await ctx.send("Invalid action. Use `sync`, `clear`, or `list`.")
-                logger.info(f"{ctx.author} ran sync action: {action} for guild: {guild_id}")
-            except (discord.HTTPException, discord.app_commands.AppCommandError) as e:
-                await ctx.send(f"Failed to {action} command tree:\n```py\n{str(e)}\n```")
-                await self._report_error(ctx, str(e), f"jsk sync {action}")
-                logger.error(f"Sync action {action} failed: {e}")
+                python = sys.executable
+                os.execl(python, python, *sys.argv)
+            except Exception as e:
+                logger.error(f"os.execl failed: {e}. Falling back to subprocess.")
+                subprocess.Popen([sys.executable] + sys.argv)
+                await self.bot.close()
+        except discord.Forbidden as e:
+            logger.error(f"Failed to send restart message: {e}")
+            await self.bot.close()
+
+    @jishaku.command(name="shutdown", aliases=["stop"])
+    async def jsk_shutdown(self, ctx):
+        try:
+            await ctx.send("Shutting down...")
+            logger.info(f"{ctx.author} initiated shutdown")
+            await self.bot.close()
+        except discord.Forbidden as e:
+            logger.error(f"Failed to send shutdown message: {e}")
+            await self.bot.close()
 
     @jishaku.command(name="owners")
     async def jsk_owners(self, ctx, action: str = "list", user: discord.User = None):
@@ -510,56 +436,26 @@ class Jishaku(commands.Cog):
             logger.error(f"Failed to send owners message: {e}")
             await ctx.send("Failed to process owners command. Ensure the bot has permissions to send messages.")
 
-    @jishaku.command(name="guilds")
-    async def jsk_guilds(self, ctx):
-        guilds = [
-            f"- {g.name} (ID: {g.id}, Members: {g.member_count}, Owner: {g.owner})"
-            for g in sorted(self.bot.guilds, key=lambda x: x.name)
-        ]
-        await self._send_paginated(ctx, guilds, "Guilds")
-        logger.info(f"{ctx.author} listed guilds")
-
-    @jishaku.command(name="status", aliases=["stats", "stat"])
-    async def jsk_status(self, ctx):
-        uptime = datetime.datetime.utcnow() - self.start_time
-        uptime_str = str(uptime).split(".")[0]
-        embed = discord.Embed(title="Bot Status", color=discord.Color.blue())
-        embed.add_field(name="Guilds", value=len(self.bot.guilds), inline=True)
-        embed.add_field(name="Users", value=len(self.bot.users), inline=True)
-        embed.add_field(name="Latency", value=f"{self.bot.latency * 1000:.2f} ms", inline=True)
-        embed.add_field(name="Commands", value=len(self.bot.commands), inline=True)
-        embed.add_field(name="Uptime", value=uptime_str, inline=True)
+    @jishaku.command(name="invite")
+    async def jsk_invite(self, ctx):
         try:
+            permissions = discord.Permissions(administrator=True)
+            invite_url = discord.utils.oauth_url(
+                self.bot.user.id,
+                permissions=permissions,
+                scopes=("bot", "applications.commands")
+            )
+            embed = discord.Embed(
+                title="Bot Invite Link",
+                description=f"[Click here to invite the bot]({invite_url})",
+                color=discord.Color.blue()
+            )
             await ctx.send(embed=embed)
-            logger.info(f"{ctx.author} ran status")
-        except discord.Forbidden as e:
-            logger.error(f"Failed to send status embed: {e}")
-            await ctx.send("Failed to send status. Ensure the bot has permissions to send embeds.")
-
-    @jishaku.command(name="extensions")
-    async def jsk_extensions(self, ctx):
-        cog_path = Path("cogs")
-        if not cog_path.exists() or not cog_path.is_dir():
-            await ctx.send("No `cogs` directory found.")
-            return
-        cogs = []
-        for file in cog_path.glob("*.py"):
-            if file.name == "__init__.py":
-                continue
-            cog_name = f"cogs.{file.stem}"
-            status = " (loaded)" if cog_name in self.bot.extensions else ""
-            cogs.append(f"- `{cog_name}`{status}")
-        await self._send_paginated(ctx, sorted(cogs), "Available Cogs")
-        logger.info(f"{ctx.author} listed extensions")
-
-    @jishaku.command(name="test")
-    async def jsk_test(self, ctx, *, response: str = "Pong!"):
-        try:
-            await ctx.send(response)
-            logger.info(f"{ctx.author} ran test with response: {response}")
-        except discord.Forbidden as e:
-            logger.error(f"Failed to send test response: {e}")
-            await ctx.send("Failed to send test response. Ensure the bot has permissions to send messages.")
+            logger.info(f"{ctx.author} generated invite link")
+        except discord.HTTPException as e:
+            await ctx.send(f"Failed to generate invite link:\n```py\n{str(e)}\n```")
+            await self._report_error(ctx, str(e), "jsk invite")
+            logger.error(f"Failed to generate invite link: {e}")
 
     @jishaku.command(name="backup")
     async def jsk_backup(self, ctx, directories: str = "cogs"):
@@ -603,179 +499,117 @@ class Jishaku(commands.Cog):
                 except OSError as e:
                     logger.warning(f"Failed to clean up temp backup directory: {e}")
 
-    @jishaku.command(name="invite")
-    async def jsk_invite(self, ctx):
+    @jishaku.command(name="status", aliases=["stats", "stat"])
+    async def jsk_status(self, ctx):
+        uptime = datetime.datetime.utcnow() - self.start_time
+        uptime_str = str(uptime).split(".")[0]
+        embed = discord.Embed(title="Bot Status", color=discord.Color.blue())
+        embed.add_field(name="Guilds", value=len(self.bot.guilds), inline=True)
+        embed.add_field(name="Users", value=len(self.bot.users), inline=True)
+        embed.add_field(name="Latency", value=f"{self.bot.latency * 1000:.2f} ms", inline=True)
+        embed.add_field(name="Commands", value=len(self.bot.commands), inline=True)
+        embed.add_field(name="Uptime", value=uptime_str, inline=True)
         try:
-            permissions = discord.Permissions(administrator=True)
-            invite_url = discord.utils.oauth_url(
-                self.bot.user.id,
-                permissions=permissions,
-                scopes=("bot", "applications.commands")
-            )
-            embed = discord.Embed(
-                title="Bot Invite Link",
-                description=f"[Click here to invite the bot]({invite_url})",
-                color=discord.Color.blue()
-            )
             await ctx.send(embed=embed)
-            logger.info(f"{ctx.author} generated invite link")
-        except discord.HTTPException as e:
-            await ctx.send(f"Failed to generate invite link:\n```py\n{str(e)}\n```")
-            await self._report_error(ctx, str(e), "jsk invite")
-            logger.error(f"Failed to generate invite link: {e}")
-
-    @jishaku.command(name="perms")
-    async def jsk_perms(self, ctx, channel: discord.TextChannel = None):
-        target = channel or ctx.channel
-        try:
-            perms = target.permissions_for(ctx.guild.me)
-            perm_list = []
-            for perm in dir(perms):
-                if perm.startswith("_") or not isinstance(getattr(perms, perm), bool):
-                    continue
-                status = "✅" if getattr(perms, perm) else "❌"
-                perm_name = perm.replace("_", " ").title()
-                suggestion = " (Grant this for full functionality)" if not getattr(perms, perm) else ""
-                perm_list.append(f"{status} {perm_name}{suggestion}")
-            await self._send_paginated(ctx, perm_list, f"Permissions in {target.name}")
-            logger.info(f"{ctx.author} checked permissions in {target.name}")
+            logger.info(f"{ctx.author} ran status")
         except discord.Forbidden as e:
-            await ctx.send(f"Failed to check permissions:\n```py\n{str(e)}\n```")
-            await self._report_error(ctx, str(e), "jsk perms")
-            logger.error(f"Failed to check permissions: {e}")
+            logger.error(f"Failed to send status embed: {e}")
+            await ctx.send("Failed to send status. Ensure the bot has permissions to send embeds.")
 
-    @jishaku.command(name="logs")
-    async def jsk_logs(self, ctx, lines: int = 20, level: str = None):
-        if lines < 1 or lines > self.config.get("max_log_lines", 100):
-            await ctx.send(f"Number of lines must be between 1 and {self.config.get('max_log_lines', 100)}.")
-            return
-        log_file = Path("bot.log")
-        if not log_file.exists():
-            await ctx.send("No log file found.")
-            return
+    @jishaku.command(name="latency")
+    async def jsk_latency(self, ctx):
+        latency = self.bot.latency * 1000
+        embed = discord.Embed(
+            title="Bot Latency",
+            description=f"Current latency: {latency:.2f} ms",
+            color=discord.Color.blue()
+        )
         try:
-            with log_file.open("r", encoding="utf-8", errors="replace") as f:
-                log_lines = []
-                level = level.upper() if level else None
-                for line in f:
-                    if level and level not in line:
-                        continue
-                    log_lines.append(line.rstrip())
-                    if len(log_lines) > lines:
-                        log_lines.pop(0)
-                output = "".join(f"{line}\n" for line in log_lines)
-            if not output:
-                await ctx.send("No logs match the specified criteria.")
-                return
-            await self._send_file(ctx, output, "logs.txt")
-            logger.info(f"{ctx.author} viewed last {lines} log lines, level: {level}")
-        except (IOError, UnicodeDecodeError) as e:
-            await ctx.send(f"Failed to read log file:\n```py\n{str(e)}\n```")
-            await self._report_error(ctx, str(e), "jsk logs")
-            logger.error(f"Failed to read log file: {e}")
-
-    @jishaku.command(name="clear")
-    async def jsk_clear(self, ctx, amount: int = 10):
-        if amount < 1 or amount > 100:
-            await ctx.send("Amount must be between 1 and 100.")
-            return
-        try:
-            if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
-                await ctx.send("I don't have permission to manage messages.")
-                return
-            await ctx.channel.purge(limit=amount + 1)
-            await ctx.send(f"Cleared {amount} messages.", delete_after=5)
-            logger.info(f"{ctx.author} cleared {amount} messages in {ctx.channel.name}")
+            await ctx.send(embed=embed)
+            logger.info(f"{ctx.author} checked latency")
         except discord.Forbidden as e:
-            await ctx.send("I don't have permission to manage messages.")
-            await self._report_error(ctx, "Missing manage messages permission", "jsk clear")
-            logger.error(f"Failed to clear messages: {e}")
-        except discord.HTTPException as e:
-            await ctx.send(f"Failed to clear messages:\n```py\n{str(e)}\n```")
-            await self._report_error(ctx, str(e), "jsk clear")
-            logger.error(f"Failed to clear messages: {e}")
+            logger.error(f"Failed to send latency embed: {e}")
+            await ctx.send("Failed to send latency. Ensure the bot has permissions to send embeds.")
 
-    @jishaku.command(name="ratelimits")
-    async def jsk_ratelimits(self, ctx, action: str = "list", command_name: str = None):
-        try:
-            if action.lower() == "list":
-                cooldowns = []
-                for command in self.bot.commands:
-                    if command._buckets:
-                        bucket = command._buckets.get_bucket({"channel_id": ctx.channel.id, "user_id": ctx.author.id})
-                        if bucket and bucket._tokens < bucket._max:
-                            remaining = bucket.get_remaining_time()
-                            cooldowns.append(
-                                f"- `{command.qualified_name}`: {bucket._tokens}/{bucket._max} uses remaining, "
-                                f"resets in {remaining:.1f}s"
-                            )
-                if not cooldowns:
-                    await ctx.send("No active cooldowns.")
-                    return
-                await self._send_paginated(ctx, cooldowns, "Command Rate Limits")
-            elif action.lower() == "reset":
-                if not command_name:
-                    await ctx.send("Please specify a command to reset (e.g., `jsk ratelimits reset jsk logs`).")
-                    return
-                command = self.bot.get_command(command_name)
-                if not command:
-                    await ctx.send(f"Command `{command_name}` not found.")
-                    return
-                if not command._buckets:
-                    await ctx.send(f"Command `{command_name}` has no cooldowns.")
-                    return
-                command._buckets.reset()
-                await ctx.send(f"Cooldowns reset for `{command_name}`.")
-            else:
-                await ctx.send("Invalid action. Use `list` or `reset <command>`.")
-            logger.info(f"{ctx.author} ran ratelimits action: {action} for command: {command_name}")
-        except discord.Forbidden as e:
-            logger.error(f"Failed to send ratelimits message: {e}")
-            await ctx.send("Failed to process ratelimits command. Ensure the bot has permissions to send messages.")
-
-    @jishaku.command(name="source")
-    async def jsk_source(self, ctx, *, target: str):
-        if not target:
-            await ctx.send("Please specify a command, cog, or module to view.")
+    @jishaku.command(name="extensions")
+    async def jsk_extensions(self, ctx):
+        cog_path = Path("cogs")
+        if not cog_path.exists() or not cog_path.is_dir():
+            await ctx.send("No `cogs` directory found.")
             return
-        command = self.bot.get_command(target)
-        if command:
+        cogs = []
+        for file in cog_path.glob("*.py"):
+            if file.name == "__init__.py":
+                continue
+            cog_name = f"cogs.{file.stem}"
+            status = " (loaded)" if cog_name in self.bot.extensions else ""
+            cogs.append(f"- `{cog_name}`{status}")
+        await self._send_paginated(ctx, sorted(cogs), "Available Cogs")
+        logger.info(f"{ctx.author} listed extensions")
+
+    @jishaku.command(name="shell", aliases=["sh"])
+    async def jsk_shell(self, ctx, *, command: str):
+        """Run a shell command and display the output."""
+        async with ctx.typing():
             try:
-                source = inspect.getsource(command.callback)
-                source = textwrap.dedent(source)
-                await self._send_file(ctx, source, f"{command.name}_source.py")
-                logger.info(f"{ctx.author} viewed source of command: {target}")
-            except (TypeError, OSError) as e:
-                await ctx.send(f"Failed to get source for command `{target}`:\n```py\n{str(e)}\n```")
-                await self._report_error(ctx, str(e), "jsk source")
-                logger.error(f"Failed to get source for command {target}: {e}")
-            return
-        cog = self.bot.get_cog(target)
-        if cog:
+                process = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                try:
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60.0)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await ctx.send("Shell command timed out after 60 seconds.")
+                    await self._report_error(ctx, "Shell command timeout", "jsk shell")
+                    return
+                output = (stdout + stderr).decode("utf-8", errors="replace")
+                await self._send_file(ctx, output, "shell_output.txt")
+                logger.info(f"{ctx.author} executed shell command: {command}")
+            except (subprocess.SubprocessError, OSError) as e:
+                await ctx.send(f"Error executing shell command:\n```py\n{str(e)}\n```")
+                await self._report_error(ctx, str(e), "jsk shell")
+                logger.error(f"Shell command failed: {e}")
+
+    @jishaku.command(name="execute", aliases=["exec"])
+    async def jsk_execute(self, ctx, *, code: str):
+        """Execute Python code and display the output."""
+        async with ctx.typing():
             try:
-                source = inspect.getsource(cog.__class__)
-                source = textwrap.dedent(source)
-                await self._send_file(ctx, source, f"{cog.__class__.__name__}_source.py")
-                logger.info(f"{ctx.author} viewed source of cog: {target}")
-            except (TypeError, OSError) as e:
-                await ctx.send(f"Failed to get source for cog `{target}`:\n```py\n{str(e)}\n```")
-                await self._report_error(ctx, str(e), "jsk source")
-                logger.error(f"Failed to get source for cog {target}: {e}")
-            return
-        try:
-            module = sys.modules.get(target)
-            if module:
-                source = inspect.getsource(module)
-                source = textwrap.dedent(source)
-                await self._send_file(ctx, source, f"{target}_source.py")
-                logger.info(f"{ctx.author} viewed source of module: {target}")
-            else:
-                await ctx.send(f"No command, cog, or module named `{target}` found.")
-                logger.warning(f"{ctx.author} tried to view source of non-existent: {target}")
-        except (TypeError, OSError) as e:
-            await ctx.send(f"Failed to get source for module `{target}`:\n```py\n{str(e)}\n```")
-            await self._report_error(ctx, str(e), "jsk source")
-            logger.error(f"Failed to get source for module {target}: {e}")
+                # Clean code block if present
+                code = code.strip()
+                if code.startswith("```") and code.endswith("```"):
+                    code = code[3:-3].strip()
+                    if code.startswith("py\n"):
+                        code = code[3:].strip()
+                # Prepare environment for execution
+                env = {
+                    "bot": self.bot,
+                    "ctx": ctx,
+                    "discord": discord,
+                    "commands": commands,
+                    "__name__": "__main__"
+                }
+                env.update(globals())
+                # Redirect stdout
+                output = io.StringIO()
+                sys.stdout = output
+                try:
+                    exec(code, env)
+                finally:
+                    sys.stdout = sys.__stdout__
+                result = output.getvalue()
+                if result:
+                    await self._send_file(ctx, result, "exec_output.txt")
+                else:
+                    await ctx.send("Code executed successfully, no output.")
+                logger.info(f"{ctx.author} executed Python code")
+            except Exception as e:
+                error_trace = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+                await self._send_file(ctx, error_trace, "exec_error.txt")
+                await self._report_error(ctx, str(e), "jsk execute")
+                logger.error(f"Failed to execute code: {e}")
 
 async def setup(bot):
     try:
@@ -785,12 +619,10 @@ async def setup(bot):
         if missing_intents:
             logger.error(f"Missing required intents: {', '.join(missing_intents)}")
             raise ValueError(f"Bot is missing required intents: {', '.join(missing_intents)}")
-
         # Load the cog
         cog = Jishaku(bot)
         await bot.add_cog(cog)
         logger.info("Jishaku cog loaded successfully")
-
         # Log registered commands
         registered_commands = []
         for cmd in bot.commands:
