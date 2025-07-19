@@ -5,42 +5,33 @@ import os
 import asyncio
 import json
 
-from keep_alive import keep_alive  # Assuming this is a custom module for keeping the bot alive
-
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
 HR_ROLE_IDS = [1324522426771443813, 1339058176003407915]
+AUTOROLE_ROLE_ID = 1292541718033596558
 
-# Configure bot intents
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
-intents.presences = True  # Presence intent for status changes
+intents.presences = True 
 
-# Initialize bot with command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Initialize global variables
-auto_role_enabled = False
-role_to_assign = None
-sleep_mode = False  # Global flag for sleep mode
+auto_role_enabled = True
+role_to_assign = AUTOROLE_ROLE_ID
+sleep_mode = False 
 loaded_cogs = []
-blocked_commands = set()  # Track blocked commands
 
-# Track bot uptime
 bot.uptime = datetime.utcnow()
 
-# Global check for sleep mode
 @bot.check
 async def block_commands_in_sleep_mode(ctx):
     if not sleep_mode:
-        return True  # Allow commands if not in sleep mode
-    # Allow !start and Jishaku commands for bot owner
+        return True 
     if ctx.command.name == "start" or "jsk shutdown":
         if await bot.is_owner(ctx.author):
-            return True  # Allow command for owner
-    # Create embed for sleep mode response
+            return True 
     embed = discord.Embed(
         title="Bot is in sleep mode.",
         description="Bot is in sleep mode, all commands are unavailable, please contact the bot developer so he can start it.",
@@ -48,7 +39,7 @@ async def block_commands_in_sleep_mode(ctx):
     )
     embed.set_footer(text=f"Command used: {ctx.command.name} | User ID: {ctx.author.id}")
     await ctx.send(embed=embed)
-    return False  # Block all other commands
+    return False 
 
 @bot.command()
 @commands.has_any_role(*HR_ROLE_IDS)
@@ -63,13 +54,12 @@ async def say(ctx, *, message: str):
 
 @bot.command(name="announce")
 async def announce(ctx, *, message: str):
-    # Check if the user has one of the allowed roles
     if not any(role.id in ALLOWED_ROLE_IDS for role in ctx.author.roles):
         try:
             await ctx.message.delete()
             await ctx.author.send("This is a restricted command, only Bot Tamers and Board of Chiefs members can use it.")
         except discord.Forbidden:
-            pass  # Silently fail if bot can't DM user
+            pass  
         return
 
     try:
@@ -77,7 +67,6 @@ async def announce(ctx, *, message: str):
     except discord.Forbidden:
         pass
 
-    # Get the announcement channel
     channel = bot.get_channel(ANNOUNCEMENT_CHANNEL_ID)
     if channel is None:
         await ctx.author.send(f"❌ Announcement channel with ID {ANNOUNCEMENT_CHANNEL_ID} not found.")
@@ -108,7 +97,6 @@ async def load_extensions():
         "cogs.trainingevents",
         "cogs.support",
         "cogs.lapd",
-        "cogs.bot",
         "cogs.embedbuilder",
         "cogs.panel",
         "cogs.certification_requests",
@@ -168,7 +156,7 @@ async def purge_error(ctx, error):
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send("Please specify the number of messages to purge.", delete_after=5)
     elif isinstance(error, commands.CheckFailure):
-        return  # Handled by globally_block_banned_users or sleep mode check
+        return 
     else:
         print(f"Purge error: {error}")
         await ctx.send(f"Error: {str(error)}", delete_after=5)
@@ -275,7 +263,6 @@ async def start(ctx):
 
 async def main():
     await load_extensions()
-    keep_alive()
     try:
         await bot.start(os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA")
     except Exception as e:
@@ -283,3 +270,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
