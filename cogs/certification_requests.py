@@ -21,7 +21,6 @@ CONFIG = {
     "ALLOWED_ROLE_ID": None,  
 }
 
-
 class TrainingCertActionView(View):
     def __init__(self, user: Member, certification: str, original_message: discord.Message, history: List[str]):
         super().__init__(timeout=None) 
@@ -104,7 +103,7 @@ class TrainingCertActionView(View):
 
         try:
             await self.original_message.edit(embed=embed, view=None)
-            await channel.send(content=f"<@&{FTO_ROLE_ID}> {self.user.mention}", embed=status_embed)
+            await channel.send(content=self.user.mention, embed=status_embed)  # Removed FTO ping
             await interaction.response.send_message(f"Training certification request for {self.certification} denied!", ephemeral=True)
             logger.info(f"Training certification {self.certification} denied for {self.user} by {interaction.user}")
         except Exception as e:
@@ -113,10 +112,11 @@ class TrainingCertActionView(View):
         self.stop()
 
 class TrainingCertRequestView(View):
-    def __init__(self, user: Member, when: str):
+    def __init__(self, user: Member, when: str, existing_requests: set):
         super().__init__(timeout=60)
         self.user = user
         self.when = when
+        self.existing_requests = existing_requests
 
     @discord.ui.select(
         placeholder="Select a Training Certification",
@@ -136,6 +136,12 @@ class TrainingCertRequestView(View):
             logger.info(f"Unauthorized select attempt by {interaction.user} for {self.user}'s request")
             return
 
+        selected_cert = select.values[0]
+        if selected_cert in self.existing_requests:
+            await interaction.response.send_message(f"🚫 You already have a pending or accepted request for **{selected_cert}**. Please wait until it is resolved or request a different certification.", ephemeral=True)
+            logger.info(f"Duplicate certification request for {selected_cert} by {self.user} in guild {interaction.guild.id}")
+            return
+
         channel = interaction.client.get_channel(CONFIG["REQUEST_CHANNEL_ID"])
         if not channel:
             logger.error(f"Target channel {CONFIG['REQUEST_CHANNEL_ID']} not found")
@@ -149,7 +155,7 @@ class TrainingCertRequestView(View):
             timestamp=datetime.now(timezone.utc)
         )
         request_embed.add_field(name="User", value=f"{self.user.mention} ({self.user.id})", inline=False)
-        request_embed.add_field(name="Training Certification", value=select.values[0], inline=False)
+        request_embed.add_field(name="Training Certification", value=selected_cert, inline=False)
         request_embed.add_field(name="When", value=self.when, inline=False)
         request_embed.add_field(name="Status History", value=f"📝 Submitted by {self.user.display_name} at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}", inline=False)
         request_embed.set_thumbnail(url=CONFIG["THUMBNAIL_URL"])
@@ -157,18 +163,18 @@ class TrainingCertRequestView(View):
 
         confirmation_embed = Embed(
             title="✅ Training Certification Request Submitted",
-            description=f"Your training certification request for **{select.values[0]}** has been sent to {channel.mention}!",
+            description=f"Your training certification request for **{selected_cert}** has been sent to {channel.mention}!",
             color=Colour.from_rgb(46, 204, 113), 
             timestamp=datetime.now(timezone.utc)
         )
-        confirmation_embed.add_field(name="Training Certification", value=select.values[0], inline=False)
+        confirmation_embed.add_field(name="Training Certification", value=selected_cert, inline=False)
         confirmation_embed.add_field(name="When", value=self.when, inline=False)
         confirmation_embed.set_footer(text=f"Requested by {self.user.display_name}")
 
         try:
             view = TrainingCertActionView(
                 user=self.user,
-                certification=select.values[0],
+                certification=selected_cert,
                 original_message=None,
                 history=[f"📝 Submitted by {self.user.display_name} at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"]
             )
@@ -177,7 +183,7 @@ class TrainingCertRequestView(View):
             await message.edit(view=view)
 
             await interaction.response.send_message(embed=confirmation_embed, ephemeral=True)
-            logger.info(f"Training certification request for {select.values[0]} sent by {self.user} to channel {CONFIG['REQUEST_CHANNEL_ID']}")
+            logger.info(f"Training certification request for {selected_cert} sent by {self.user} to channel {CONFIG['REQUEST_CHANNEL_ID']}")
         except Exception as e:
             logger.error(f"Failed to send training certification request embed: {str(e)}", exc_info=True)
             await interaction.response.send_message(f"Error sending training certification request: {str(e)}", ephemeral=True)
@@ -186,6 +192,7 @@ class TrainingCertRequestView(View):
 class CertsRequests(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.active_requests = {}  # Store active requests per user
         logger.info("CertificationTrainingRequests cog initialized")
 
     async def cog_load(self):
@@ -226,7 +233,9 @@ class CertsRequests(commands.Cog):
                 logger.info(f"Invalid time input '{time}' by {ctx.author} in guild {ctx.guild.id}")
                 return
 
-            view = TrainingCertRequestView(user=ctx.author, when=time)
+            # Check for existing requests
+            existing_requests = self.active_requests.get(ctx.author.id, set())
+            view = TrainingCertRequestView(user=ctx.author, when=time, existing_requests=existing_requests)
             await ctx.send("📋 Please select a training certification from the dropdown below:", view=view, delete_after=60)
             logger.info(f"requestcerts command executed by {ctx.author} in guild {ctx.guild.id} with time: {time}")
         except Exception as e:
@@ -262,6 +271,23 @@ class CertsRequests(commands.Cog):
             logger.error(f"listcerts command failed for {ctx.author} in guild {ctx.guild.id}: {str(e)}", exc_info=True)
             await ctx.send(f"❌ Error executing command: {str(e)}", ephemeral=True)
 
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.channel.id != CONFIG["REQUEST_CHANNEL_ID"]:
+            return
+        if message.author.bot:
+            return
+        if message.embeds and message.embeds[0].title == "Certification Training Request":
+            user_id = int(message.embeds[0].fields[0].value.split('(')[1].split(')')[0])
+            certification = message.embeds[0].fields[1].value
+            status = message.embeds[0].description.split('**Status: ')[1].split('**')[0]
+            if status in ["Pending ⏳", "Accepted ✅"]:
+                self.active_requests.setdefault(user_id, set()).add(certification)
+            elif status == "Denied ❌":
+                self.active_requests.get(user_id, set()).discard(certification)
+                if not self.active_requests.get(user_id):
+                    self.active_requests.pop(user_id, None)
+
     @requestcerts.error
     async def requestcerts_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.CommandOnCooldown):
@@ -273,4 +299,3 @@ class CertsRequests(commands.Cog):
 async def setup(bot):
     await bot.add_cog(CertsRequests(bot))
     logger.info("CertificationTrainingRequests cog added to bot")
-
