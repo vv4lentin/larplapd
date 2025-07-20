@@ -4,6 +4,8 @@ from datetime import datetime
 import os
 import asyncio
 import json
+import keep_alive 
+from keep_alive import keep_alive
 
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
@@ -273,6 +275,7 @@ async def start(ctx):
 
 async def main():
     await load_extensions()
+    keep_alive()
     try:
         await bot.start(os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA")
     except Exception as e:
