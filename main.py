@@ -4,8 +4,6 @@ from datetime import datetime
 import os
 import asyncio
 import json
-import keep_alive
-from keep_alive import keep_alive
 
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
@@ -22,21 +20,22 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 auto_role_enabled = True
 role_to_assign = AUTOROLE_ROLE_ID
-sleep_mode = False 
+sleep_mode = True 
 loaded_cogs = []
 
 bot.uptime = datetime.utcnow()
 
 @bot.check
 async def block_commands_in_sleep_mode(ctx):
+    if await bot.is_owner(ctx.author):
+        return True  # Bot owner can use all commands regardless of sleep mode
     if not sleep_mode:
         return True 
-    if ctx.command.name == "start" or "jsk shutdown":
-        if await bot.is_owner(ctx.author):
-            return True 
+    if ctx.command.name == "start":
+        return True  # Allow start command for non-owners
     embed = discord.Embed(
         title="Bot is in sleep mode.",
-        description="Bot is in sleep mode, all commands are unavailable, please contact the bot developer so he can start it.",
+        description="Bot is in sleep mode, all commands are unavailable except for the bot owner. Please contact the bot developer to start it.",
         color=discord.Color.red()
     )
     embed.set_footer(text=f"Command used: {ctx.command.name} | User ID: {ctx.author.id}")
@@ -86,6 +85,11 @@ async def on_ready():
     print(f"Connected to {len(bot.guilds)} guilds")
     print("Bot is ready!")
     try:
+        activity = discord.Activity(
+            type=discord.ActivityType.playing,
+            name="Waiting for developers to start me.."
+        )
+        await bot.change_presence(status=discord.Status.idle, activity=activity)
         guild = discord.Object(id=1292523481539543193)
         synced = await bot.tree.sync(guild=guild)
         print(f"Synced {len(synced)} command(s) to guild {guild.id}")
@@ -142,8 +146,12 @@ async def purge(ctx, amount: int):
         await ctx.send("Please specify a number between 1 and 100.", delete_after=5)
         return
     try:
-        await ctx.channel.purge(limit=amount + 1)
-        await ctx.send(f"Successfully deleted {amount} message(s).", delete_after=5)
+        # Purge only non-pinned messages
+        await ctx.channel.purge(
+            limit=amount + 1,
+            check=lambda m: not m.pinned  # Only delete messages that are not pinned
+        )
+        await ctx.send(f"Successfully deleted {amount} non-pinned message(s).", delete_after=5)
     except discord.Forbidden:
         await ctx.send("❌ I don't have permission to delete messages.", delete_after=5)
     except discord.HTTPException as e:
@@ -158,7 +166,7 @@ async def purge_error(ctx, error):
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send("Please specify the number of messages to purge.", delete_after=5)
     elif isinstance(error, commands.CheckFailure):
-        return 
+        return  # Handled by globally_block_banned_users or sleep mode check
     else:
         print(f"Purge error: {error}")
         await ctx.send(f"Error: {str(error)}", delete_after=5)
@@ -220,7 +228,7 @@ async def stop(ctx):
         sleep_mode = True
         embed = discord.Embed(
             title="Bot Entering Sleep Mode",
-            description="The bot is now in sleep mode. All commands are disabled until reactivated.",
+            description="The bot is now in sleep mode. All commands are disabled except for the bot owner.",
             color=discord.Color.red(),
             timestamp=datetime.utcnow()
         )
@@ -265,7 +273,6 @@ async def start(ctx):
 
 async def main():
     await load_extensions()
-    keep_alive()
     try:
         await bot.start(os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA")
     except Exception as e:
@@ -273,4 +280,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
