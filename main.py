@@ -138,7 +138,9 @@ async def test(ctx):
 
 @bot.command()
 async def dumb(ctx):
-    await ctx.send("Yeah no the command is no longer used, please avoid using it since it is useless.")
+    await ctx.send("<@1320762196617646696> shush")
+    await ctx.send("<@1320762191661764689> erm why u so dumb")
+    await ctx.send("<@1320762191661764689> erm")
 
 @bot.command(name='purge')
 @commands.has_permissions(manage_messages=True)
