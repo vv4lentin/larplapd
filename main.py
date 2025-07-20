@@ -138,7 +138,7 @@ async def test(ctx):
 
 @bot.command()
 async def dumb(ctx):
-    await ctx.send("<@1320762196617646696> shush")
+    await ctx.send("<@1320762191661764689> shush")
     await ctx.send("<@1320762191661764689> erm why u so dumb")
     await ctx.send("<@1320762191661764689> erm")
 
