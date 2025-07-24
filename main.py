@@ -44,16 +44,31 @@ async def block_commands_in_sleep_mode(ctx):
     await ctx.send(embed=embed)
     return False 
 
+from discord import Embed, Colour
+
 @bot.command()
-@commands.has_any_role(*HR_ROLE_IDS)
 async def say(ctx, *, message: str):
-    try:
-        await ctx.message.delete()
-        await ctx.send(message)
-    except discord.Forbidden:
-        await ctx.send("❌ I don't have permission to delete messages.", delete_after=5)
-    except commands.MissingAnyRole:
-        await ctx.send("❌ You don't have the required role to use this command.", delete_after=5)
+    allowed_user_id = 1335497299773620287
+    banned_user_id = 1030197824702398547
+    
+    if ctx.author.id == banned_user_id:
+        embed = Embed(
+            title="UNAUTHORIZED",
+            description=f"Hello <@{banned_user_id}>, you have been banned from using this command, if you want to know why or to appeal the ban, please open a Bot Development Ticket.",
+            colour=Colour.red()
+        )
+        embed.set_footer(text="Los Angeles Police Department")
+        await ctx.send(embed=embed)
+        return
+    
+    if ctx.author.id == allowed_user_id or any(role.id in HR_ROLE_IDS for role in ctx.author.roles):
+        try:
+            await ctx.message.delete()
+            await ctx.send(message)
+        except discord.Forbidden:
+            await ctx.send("❌ I don't have permission to delete messages.", delete_after=5)
+    else:
+        await ctx.send("❌ You don't have the required role or permission to use this command.", delete_after=5)
 
 @bot.command(name="announce")
 async def announce(ctx, *, message: str):
