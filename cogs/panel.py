@@ -137,6 +137,7 @@ class Panel(commands.Cog):
             1324540074834133033,  # Punishment Role 5
             1324540189594353787   # Punishment Role 6
         ]
+        self.required_role_id = 1292541838904791040  # Role ID to check
 
     @commands.command(name="panel")
     async def panel(self, ctx):
@@ -236,7 +237,7 @@ class Panel(commands.Cog):
             color=discord.Color.red(),
             timestamp=datetime.now()
         )
-        role = ctx.guild.get_role(1292541838904791040)
+        role = ctx.guild.get_role(self.required_role_id)
         if not role:
             await ctx.send("Error: Role not found.")
             return
@@ -286,6 +287,19 @@ class Panel(commands.Cog):
                 added_count += 1
 
         await ctx.send(f"Successfully copied {added_count} callsign(s) to the database.")
+
+    async def on_member_update(self, before, after):
+        # Check if the required role was removed
+        role = after.guild.get_role(self.required_role_id)
+        if not role:
+            return  # Role not found, exit
+
+        had_role_before = role in before.roles
+        has_role_after = role in after.roles
+
+        # If the member lost the role and is in the callsign database, remove them
+        if had_role_before and not has_role_after and after.id in callsigns_db:
+            del callsigns_db[after.id]
 
 async def setup(bot):
     await bot.add_cog(Panel(bot))
