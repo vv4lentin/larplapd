@@ -1,5 +1,5 @@
 import discord
-from discord import Embed, Colour, ButtonStyle, Interaction, Member, app_commands
+from discord import Embed, Colour, ButtonStyle, Interaction, Member, app_commands, Activity, ActivityType, Status
 from discord.ui import Button, View, Select
 from discord.ext import commands
 import logging
@@ -19,6 +19,7 @@ CONFIG = {
     "REQUEST_CHANNEL_ID": 1383124547900936242,  
     "STATUS_CHANNEL_ID": 1304472122646859797,  
     "ALLOWED_ROLE_ID": None,  
+    "THUMBNAIL_URL": "https://example.com/thumbnail.png"
 }
 
 class TrainingCertActionView(View):
@@ -103,7 +104,7 @@ class TrainingCertActionView(View):
 
         try:
             await self.original_message.edit(embed=embed, view=None)
-            await channel.send(content=self.user.mention, embed=status_embed)  # Removed FTO ping
+            await channel.send(content=self.user.mention, embed=status_embed)
             await interaction.response.send_message(f"Training certification request for {self.certification} denied!", ephemeral=True)
             logger.info(f"Training certification {self.certification} denied for {self.user} by {interaction.user}")
         except Exception as e:
@@ -233,7 +234,6 @@ class CertsRequests(commands.Cog):
                 logger.info(f"Invalid time input '{time}' by {ctx.author} in guild {ctx.guild.id}")
                 return
 
-            # Check for existing requests
             existing_requests = self.active_requests.get(ctx.author.id, set())
             view = TrainingCertRequestView(user=ctx.author, when=time, existing_requests=existing_requests)
             await ctx.send("📋 Please select a training certification from the dropdown below:", view=view, delete_after=60)
@@ -271,6 +271,63 @@ class CertsRequests(commands.Cog):
             logger.error(f"listcerts command failed for {ctx.author} in guild {ctx.guild.id}: {str(e)}", exc_info=True)
             await ctx.send(f"❌ Error executing command: {str(e)}", ephemeral=True)
 
+    @commands.hybrid_command(
+        name="setbot",
+        description="Set the bot's status and activity. Use quotes for multi-word activity (e.g., \"Under Maintenance\")."
+    )
+    @app_commands.describe(
+        status="The status to set: dnd, online, offline, or idle",
+        activity="The activity to display (e.g., 'Training Requests' or leave empty to clear)"
+    )
+    @app_commands.choices(status=[
+        app_commands.Choice(name="Do Not Disturb", value="dnd"),
+        app_commands.Choice(name="Online", value="online"),
+        app_commands.Choice(name="Offline", value="offline"),
+        app_commands.Choice(name="Idle", value="idle")
+    ])
+    @commands.has_permissions(administrator=True)
+    async def setbot(self, ctx: commands.Context, status: str, *, activity: str = ""):
+        try:
+            if not ctx.guild:
+                await ctx.send("🚫 This command can only be used in a server.", ephemeral=True)
+                logger.error(f"setbot command attempted in DM by {ctx.author}")
+                return
+
+            status_map = {
+                "dnd": Status.dnd,
+                "online": Status.online,
+                "offline": Status.offline,
+                "idle": Status.idle
+            }
+
+            if status.lower() not in status_map:
+                await ctx.send("🚫 Invalid status. Please use one of: dnd, online, offline, idle.", ephemeral=True)
+                logger.info(f"Invalid status input '{status}' by {ctx.author} in guild {ctx.guild.id}")
+                return
+
+            if len(activity) > 100:
+                await ctx.send("🚫 Activity must be 100 characters or less.", ephemeral=True)
+                logger.info(f"Invalid activity length '{len(activity)}' by {ctx.author} in guild {ctx.guild.id}")
+                return
+
+            discord_status = status_map[status.lower()]
+            activity_obj = Activity(type=ActivityType.watching, name=activity) if activity else None
+
+            await self.bot.change_presence(status=discord_status, activity=activity_obj)
+            activity_display = activity if activity else "none"
+            embed = Embed(
+                title="✅ Bot Presence Updated",
+                description=f"Bot status set to **{status.lower()}** with activity **Watching {activity_display}**.",
+                color=Colour.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_footer(text=f"Updated by {ctx.author.display_name}")
+            await ctx.send(embed=embed, ephemeral=True)
+            logger.info(f"Bot presence set to status '{status.lower()}' and activity 'Watching {activity_display}' by {ctx.author} in guild {ctx.guild.id}")
+        except Exception as e:
+            logger.error(f"setbot command failed for {ctx.author} in guild {ctx.guild.id}: {str(e)}", exc_info=True)
+            await ctx.send(f"❌ Error setting bot presence: {str(e)}", ephemeral=True)
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.channel.id != CONFIG["REQUEST_CHANNEL_ID"]:
@@ -293,6 +350,14 @@ class CertsRequests(commands.Cog):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(f"⏰ Please wait {error.retry_after:.1f} seconds before using this command again.", ephemeral=True)
             logger.info(f"Cooldown triggered for {ctx.author} in guild {ctx.guild.id}: {error.retry_after:.1f} seconds")
+        else:
+            await self.cog_command_error(ctx, error)
+
+    @setbot.error
+    async def setbot_error(self, ctx: commands.Context, error: commands.CommandError):
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("🚫 You need administrator permissions to use this command.", ephemeral=True)
+            logger.info(f"Missing permissions for setbot by {ctx.author} in guild {ctx.guild.id}")
         else:
             await self.cog_command_error(ctx, error)
 
