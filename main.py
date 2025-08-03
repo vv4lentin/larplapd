@@ -49,7 +49,7 @@ from discord import Embed, Colour
 @bot.command()
 async def say(ctx, *, message: str):
     allowed_user_id = 1335497299773620287
-    banned_user_id = 1030197824702398547
+    banned_user_id = 1335497299773620287
     
     if ctx.author.id == banned_user_id:
         embed = Embed(
