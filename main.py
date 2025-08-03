@@ -49,12 +49,12 @@ from discord import Embed, Colour
 @bot.command()
 async def say(ctx, *, message: str):
     allowed_user_id = 1335497299773620287
-    banned_user_id = 1335497299773620287
+    banned_user_id = 1030197824702398547
     
     if ctx.author.id == banned_user_id:
         embed = Embed(
             title="UNAUTHORIZED",
-            description=f"Hello <@{banned_user_id}>, you have been banned from using this command, if you want to know why or to appeal the ban, please open a Bot Development Ticket.",
+            description=f"Hello <@{banned_user_id}>, you have been banned from using this command, and dont you dare ping and beg me again to unban./n **Reason** Self Explanatory : 'There are only 2 genders, Men and woman, *cry about it*'",
             colour=Colour.red()
         )
         embed.set_footer(text="Los Angeles Police Department")
