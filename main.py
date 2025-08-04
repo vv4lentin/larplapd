@@ -5,12 +5,25 @@ import os
 import asyncio
 import json
 import keep_alive 
+import re 
+from collections import Counter 
 from keep_alive import keep_alive
 
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
 HR_ROLE_IDS = [1324522426771443813, 1339058176003407915]
 AUTOROLE_ROLE_ID = 1292541718033596558
+DISRESPECTFUL_WORDS = [
+    "idiot", "dumb", "stupid", "loser", "clown", "moron", "retard", "fool", "airhead", "pea-brain",
+    "shut up", "fuck you", "screw you", "go to hell", "no one likes you", "kill yourself", "kys",
+    "drop dead", "get lost", "die in a fire", "i hate you", "nobody cares", "i’ll kill you", "choke",
+    "you’re worthless", "waste of space", "useless", "you suck", "worthless", "unwanted", "irrelevant",
+    "bitch", "bastard", "asshole", "prick", "dickhead", "shithead", "fucker", "cunt", "whore", "slut",
+    "fat", "ugly", "disgusting", "gross", "pig", "cow", "elephant", "nasty looking",
+    "nigger", "nigga", "fag", "faggot", "tranny", "chink", "spic", "dyke", "kike",
+    "cry about it", "stay mad", "cope", "seethe", "bozo", "ratio", "you’re crazy", "you imagined it",
+    "stop overreacting", "kill urself", "smd", "your life sucks", "ur a joke", "no friends", "you’re trash"
+]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -26,6 +39,34 @@ sleep_mode = True
 loaded_cogs = []
 
 bot.uptime = datetime.utcnow()
+
+def detect_behavior_issues(content: str) -> list:
+    flags = []
+
+    # ALL CAPS yelling
+    if len(content) > 8 and content.upper() == content and content.isalpha():
+        flags.append("🔊 Excessive yelling (ALL CAPS)")
+
+    # Repeated letters or spammy patterns
+    if re.search(r"(.)\1{5,}", content):
+        flags.append("🔁 Repeated characters")
+
+    word_counts = Counter(content.lower().split())
+    if any(count >= 5 for count in word_counts.values()):
+        flags.append("🔁 Word spam")
+
+    # Aggressive phrase detection
+    aggressive_patterns = [
+        r"\bi(?:'|’)ll kill you\b", r"\bi hate you\b", r"\byou should die\b",
+        r"\bkill yourself\b", r"\bdrop dead\b", r"\byou're worthless\b",
+        r"\byou’re trash\b", r"\bno one likes you\b"
+    ]
+    for pattern in aggressive_patterns:
+        if re.search(pattern, content.lower()):
+            flags.append("😡 Aggressive intent detected")
+            break
+
+    return flags
 
 @bot.check
 async def block_commands_in_sleep_mode(ctx):
@@ -146,6 +187,99 @@ async def on_member_join(member: discord.Member):
         except discord.HTTPException as e:
             print(f"❌ Failed to assign role: {e}")
 
+@bot.command()
+async def searchd(ctx, user_id: int):
+    await ctx.message.delete()
+    author = ctx.author
+    guild = ctx.guild
+
+    target = guild.get_member(user_id)
+    if not target:
+        await author.send(f"❌ User with ID `{user_id}` not found in this server.")
+        return
+
+    await author.send(embed=discord.Embed(
+        title="🔍 Toxicity Scanner Activated",
+        description=f"Analyzing messages from **{target.mention}** (`{target.id}`)...",
+        color=discord.Color.blurple()
+    ))
+
+    total_found = 0
+    critical_hits = 0
+    messages_scanned = 0
+
+    for channel in guild.text_channels:
+        if not channel.permissions_for(guild.me).read_message_history:
+            continue
+
+        try:
+            async for message in channel.history(limit=400):
+                if message.author.id != user_id or not message.content:
+                    continue
+
+                messages_scanned += 1
+                content = message.content.lower()
+                matched_words = [w for w in DISRESPECTFUL_WORDS if w in content]
+                behavior_flags = detect_behavior_issues(message.content)
+
+                score = len(matched_words) + len(behavior_flags)
+                if score == 0:
+                    continue
+
+                severity = "⚪ Low"
+                color = discord.Color.green()
+                if score >= 3:
+                    severity = "🟠 Medium"
+                    color = discord.Color.orange()
+                if score >= 5:
+                    severity = "🔴 High"
+                    color = discord.Color.red()
+                    critical_hits += 1
+                if score >= 7:
+                    severity = "🟥 Critical"
+                    color = discord.Color.dark_red()
+
+                embed = discord.Embed(
+                    title=f"{severity} Risk Detected",
+                    description=message.content,
+                    color=color,
+                    timestamp=message.created_at.replace(tzinfo=timezone.utc)
+                )
+                embed.add_field(name="Channel", value=f"#{channel.name}", inline=True)
+                embed.add_field(name="Message Link", value=f"[Jump to Message]({message.jump_url})", inline=False)
+                if matched_words:
+                    embed.add_field(name="Disrespect Detected", value=", ".join(set(matched_words)), inline=False)
+                if behavior_flags:
+                    embed.add_field(name="Behavior Flags", value="\n".join(behavior_flags), inline=False)
+                embed.set_footer(text=f"{message.author} | ID: {message.author.id}")
+
+                await author.send(embed=embed)
+                total_found += 1
+
+        except discord.Forbidden:
+            continue
+
+    # Final Summary Embed
+    summary = discord.Embed(
+        title="📊 Scan Summary",
+        color=discord.Color.blue()
+    )
+    summary.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
+    summary.add_field(name="Messages Scanned", value=str(messages_scanned), inline=True)
+    summary.add_field(name="Toxic Messages Found", value=str(total_found), inline=True)
+    summary.add_field(name="Critical Level Messages", value=str(critical_hits), inline=True)
+
+    if critical_hits >= 3:
+        summary.add_field(
+            name="🚨 Recommendation",
+            value="This user shows repeated toxic behavior. Consider flagging for manual review.",
+            inline=False
+        )
+    else:
+        summary.add_field(name="Status", value="Scan complete. No serious risk flagged.", inline=False)
+
+    await author.send(embed=summary)
+    
 @bot.command()
 async def test(ctx):
     print("Command executed once")
