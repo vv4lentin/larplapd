@@ -5,6 +5,7 @@ import os
 import asyncio
 import json
 import keep_alive 
+import time
 import re 
 from collections import Counter 
 from keep_alive import keep_alive
@@ -50,11 +51,9 @@ bot.uptime = datetime.utcnow()
 def detect_behavior_issues(content: str) -> list:
     flags = []
 
-    # ALL CAPS yelling
     if len(content) > 8 and content.upper() == content and content.isalpha():
         flags.append("🔊 Excessive yelling (ALL CAPS)")
 
-    # Repeated letters or spam
     if re.search(r"(.)\1{5,}", content):
         flags.append("🔁 Repeated characters")
 
@@ -62,7 +61,6 @@ def detect_behavior_issues(content: str) -> list:
     if any(count >= 5 for count in word_counts.values()):
         flags.append("🔁 Word spam")
 
-    # Aggressive phrases
     aggressive_patterns = [
         r"\bi(?:'|’)ll kill you\b", r"\bi hate you\b", r"\byou should die\b",
         r"\bkill yourself\b", r"\bdrop dead\b", r"\byou're worthless\b",
@@ -205,15 +203,30 @@ async def searchd(ctx, user_id: int):
         await author.send(f"❌ User with ID `{user_id}` not found in this server.")
         return
 
-    await author.send(embed=discord.Embed(
+    status_msg = await author.send(embed=discord.Embed(
         title="🔍 Toxicity Scan Started",
-        description=f"Scanning messages from **{target.mention}** (`{target.id}`)...",
+        description=f"Scanning messages from **{target.mention}** (`{target.id}`)...\n\nPlease wait...",
         color=discord.Color.blurple()
     ))
 
     total_found = 0
     critical_hits = 0
     messages_scanned = 0
+    messages_to_scan = 0
+    flagged = []
+
+    # Estimate total messages
+    for channel_id in CHANNEL_WHITELIST:
+        channel = guild.get_channel(channel_id)
+        if not channel:
+            continue
+        try:
+            messages_to_scan += sum(1 async for _ in channel.history(limit=400))
+        except discord.Forbidden:
+            continue
+
+    start_time = time.time()
+    last_update = start_time
 
     for channel_id in CHANNEL_WHITELIST:
         channel = guild.get_channel(channel_id)
@@ -261,30 +274,54 @@ async def searchd(ctx, user_id: int):
                     embed.add_field(name="Behavior Flags", value="\n".join(behavior_flags), inline=False)
                 embed.set_footer(text=f"{message.author} | ID: {message.author.id}")
 
-                await author.send(embed=embed)
+                flagged.append(embed)
                 total_found += 1
+
+                # Every 10 seconds, update progress
+                if time.time() - last_update >= 10:
+                    elapsed = time.time() - start_time
+                    rate = messages_scanned / elapsed if elapsed > 0 else 0
+                    remaining = messages_to_scan - messages_scanned
+                    eta = int(remaining / rate) if rate > 0 else -1
+                    eta_display = f"{eta} seconds" if eta > 0 else "Calculating..."
+
+                    await status_msg.edit(embed=discord.Embed(
+                        title="🔄 Scan in Progress",
+                        description=(
+                            f"Scanned: `{messages_scanned}/{messages_to_scan}` messages\n"
+                            f"Detected: `{total_found}` flagged messages\n"
+                            f"⏳ ETA: **{eta_display}**"
+                        ),
+                        color=discord.Color.gold()
+                    ))
+                    last_update = time.time()
 
         except discord.Forbidden:
             continue
 
+    # Send flagged messages
+    for embed in flagged:
+        await author.send(embed=embed)
+
+    elapsed = time.time() - start_time
+
+    # Final summary
     summary = discord.Embed(
         title="📊 Scan Summary",
-        color=discord.Color.blue()
+        color=discord.Color.blue(),
+        description=(
+            f"✅ **Finished in {round(elapsed, 1)} seconds**\n"
+            f"📄 Messages Scanned: `{messages_scanned}`\n"
+            f"🚩 Toxic Messages: `{total_found}`\n"
+            f"🔥 Critical Messages: `{critical_hits}`"
+        )
     )
-    summary.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
-    summary.add_field(name="Messages Scanned", value=str(messages_scanned), inline=True)
-    summary.add_field(name="Toxic Messages Found", value=str(total_found), inline=True)
-    summary.add_field(name="Critical Messages", value=str(critical_hits), inline=True)
-
     if critical_hits >= 3:
         summary.add_field(
             name="🚨 Recommendation",
-            value="This user shows repeated toxic behavior. Consider taking moderation action.",
+            value="This user shows repeated toxic behavior. Consider staff review.",
             inline=False
         )
-    else:
-        summary.add_field(name="Status", value="Scan complete. No major risks flagged.", inline=False)
-
     await author.send(embed=summary)
     
 @bot.command()
