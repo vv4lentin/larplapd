@@ -25,6 +25,13 @@ DISRESPECTFUL_WORDS = [
     "stop overreacting", "kill urself", "smd", "your life sucks", "ur a joke", "no friends", "you’re trash"
 ]
 
+CHANNEL_WHITELIST = [
+    1292544200822493255,
+    1292544821688537158,
+    1292537114524913665,
+    1348405434905530420
+]
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -47,7 +54,7 @@ def detect_behavior_issues(content: str) -> list:
     if len(content) > 8 and content.upper() == content and content.isalpha():
         flags.append("🔊 Excessive yelling (ALL CAPS)")
 
-    # Repeated letters or spammy patterns
+    # Repeated letters or spam
     if re.search(r"(.)\1{5,}", content):
         flags.append("🔁 Repeated characters")
 
@@ -55,7 +62,7 @@ def detect_behavior_issues(content: str) -> list:
     if any(count >= 5 for count in word_counts.values()):
         flags.append("🔁 Word spam")
 
-    # Aggressive phrase detection
+    # Aggressive phrases
     aggressive_patterns = [
         r"\bi(?:'|’)ll kill you\b", r"\bi hate you\b", r"\byou should die\b",
         r"\bkill yourself\b", r"\bdrop dead\b", r"\byou're worthless\b",
@@ -63,7 +70,7 @@ def detect_behavior_issues(content: str) -> list:
     ]
     for pattern in aggressive_patterns:
         if re.search(pattern, content.lower()):
-            flags.append("😡 Aggressive intent detected")
+            flags.append("😡 Aggressive intent")
             break
 
     return flags
@@ -199,8 +206,8 @@ async def searchd(ctx, user_id: int):
         return
 
     await author.send(embed=discord.Embed(
-        title="🔍 Toxicity Scanner Activated",
-        description=f"Analyzing messages from **{target.mention}** (`{target.id}`)...",
+        title="🔍 Toxicity Scan Started",
+        description=f"Scanning messages from **{target.mention}** (`{target.id}`)...",
         color=discord.Color.blurple()
     ))
 
@@ -208,8 +215,9 @@ async def searchd(ctx, user_id: int):
     critical_hits = 0
     messages_scanned = 0
 
-    for channel in guild.text_channels:
-        if not channel.permissions_for(guild.me).read_message_history:
+    for channel_id in CHANNEL_WHITELIST:
+        channel = guild.get_channel(channel_id)
+        if not channel or not channel.permissions_for(guild.me).read_message_history:
             continue
 
         try:
@@ -240,7 +248,7 @@ async def searchd(ctx, user_id: int):
                     color = discord.Color.dark_red()
 
                 embed = discord.Embed(
-                    title=f"{severity} Risk Detected",
+                    title=f"{severity} Risk Message",
                     description=message.content,
                     color=color,
                     timestamp=message.created_at.replace(tzinfo=timezone.utc)
@@ -248,7 +256,7 @@ async def searchd(ctx, user_id: int):
                 embed.add_field(name="Channel", value=f"#{channel.name}", inline=True)
                 embed.add_field(name="Message Link", value=f"[Jump to Message]({message.jump_url})", inline=False)
                 if matched_words:
-                    embed.add_field(name="Disrespect Detected", value=", ".join(set(matched_words)), inline=False)
+                    embed.add_field(name="Disrespect Terms", value=", ".join(set(matched_words)), inline=False)
                 if behavior_flags:
                     embed.add_field(name="Behavior Flags", value="\n".join(behavior_flags), inline=False)
                 embed.set_footer(text=f"{message.author} | ID: {message.author.id}")
@@ -259,7 +267,6 @@ async def searchd(ctx, user_id: int):
         except discord.Forbidden:
             continue
 
-    # Final Summary Embed
     summary = discord.Embed(
         title="📊 Scan Summary",
         color=discord.Color.blue()
@@ -267,16 +274,16 @@ async def searchd(ctx, user_id: int):
     summary.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
     summary.add_field(name="Messages Scanned", value=str(messages_scanned), inline=True)
     summary.add_field(name="Toxic Messages Found", value=str(total_found), inline=True)
-    summary.add_field(name="Critical Level Messages", value=str(critical_hits), inline=True)
+    summary.add_field(name="Critical Messages", value=str(critical_hits), inline=True)
 
     if critical_hits >= 3:
         summary.add_field(
             name="🚨 Recommendation",
-            value="This user shows repeated toxic behavior. Consider flagging for manual review.",
+            value="This user shows repeated toxic behavior. Consider taking moderation action.",
             inline=False
         )
     else:
-        summary.add_field(name="Status", value="Scan complete. No serious risk flagged.", inline=False)
+        summary.add_field(name="Status", value="Scan complete. No major risks flagged.", inline=False)
 
     await author.send(embed=summary)
     
