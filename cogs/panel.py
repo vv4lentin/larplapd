@@ -5,28 +5,26 @@ from discord import Interaction, TextStyle
 from datetime import datetime
 import re
 
-# Simulated callsign storage (replace with database if needed)
+# Simulated callsign storage (replace with a real database if needed)
 callsigns_db = {}  # Format: {user_id: callsign}
 
-# Callsign Request Modal
+# Constants
+REQUIRED_ROLE_ID = 1292541838904791040
+ALLOWED_ROLE_ID = 1339058176003407915
+ALERT_CHANNEL_ID = 1377974406277501021
+CALLSIGN_LIST_CHANNEL_ID = 1344921844557414411
+CALLSIGN_REQUEST_CHANNEL_ID = 1353106180406509682
+
+# Modal for requesting callsigns
 class CallsignModal(discord.ui.Modal, title="Request a Callsign"):
     def __init__(self):
         super().__init__()
-        self.roblox_discord = discord.ui.TextInput(
-            label="Roblox + Discord User",
-            placeholder="Enter your Roblox and Discord username",
-            required=True
-        )
-        self.callsign = discord.ui.TextInput(
-            label="Callsign Requested",
-            placeholder="Enter the callsign you want",
-            required=True
-        )
+        self.roblox_discord = TextInput(label="Roblox + Discord User", placeholder="Enter your Roblox and Discord username", required=True)
+        self.callsign = TextInput(label="Callsign Requested", placeholder="Enter the callsign you want", required=True)
         self.add_item(self.roblox_discord)
         self.add_item(self.callsign)
 
     async def on_submit(self, interaction: Interaction):
-        # Create embed for callsign request
         embed = discord.Embed(
             title="Callsign Request",
             color=discord.Color.blue(),
@@ -35,75 +33,47 @@ class CallsignModal(discord.ui.Modal, title="Request a Callsign"):
         embed.add_field(name="Who", value=interaction.user.mention, inline=False)
         embed.add_field(name="Callsign", value=self.callsign.value, inline=False)
 
-        # Create accept/deny buttons
         view = View(timeout=None)
-        accept_button = Button(label="Accept", style=discord.ButtonStyle.green, custom_id=f"accept_callsign_{interaction.user.id}_{self.callsign.value}")
-        deny_button = Button(label="Deny", style=discord.ButtonStyle.red, custom_id=f"deny_callsign_{interaction.user.id}")
+        accept = Button(label="Accept", style=discord.ButtonStyle.green, custom_id=f"accept_callsign_{interaction.user.id}_{self.callsign.value}")
+        deny = Button(label="Deny", style=discord.ButtonStyle.red, custom_id=f"deny_callsign_{interaction.user.id}")
 
-        async def accept_callback(interaction: Interaction):
-            # Extract requester's user ID from custom_id
-            requester_id = int(interaction.data['custom_id'].split('_')[2])
-            callsign = interaction.data['custom_id'].split('_')[3]
-            # Store callsign for requester (replace with database logic)
-            callsigns_db[requester_id] = callsign
-            await interaction.response.send_message(f"Callsign `{callsign}` approved for <@{requester_id}>!", ephemeral=True)
-            # Disable buttons after action
-            accept_button.disabled = True
-            deny_button.disabled = True
-            await interaction.message.edit(view=view)
+        async def accept_cb(inter: Interaction):
+            uid = int(inter.data['custom_id'].split('_')[2])
+            callsign = inter.data['custom_id'].split('_')[3]
+            callsigns_db[uid] = callsign
+            await inter.response.send_message(f"✅ Callsign `{callsign}` approved for <@{uid}>!", ephemeral=True)
+            accept.disabled = True
+            deny.disabled = True
+            await inter.message.edit(view=view)
 
-        async def deny_callback(interaction: Interaction):
-            requester_id = int(interaction.data['custom_id'].split('_')[2])
-            await interaction.response.send_message(f"Callsign request for <@{requester_id}> denied.", ephemeral=True)
-            # Disable buttons after action
-            accept_button.disabled = True
-            deny_button.disabled = True
-            await interaction.message.edit(view=view)
+        async def deny_cb(inter: Interaction):
+            uid = int(inter.data['custom_id'].split('_')[2])
+            await inter.response.send_message(f"❌ Callsign request for <@{uid}> denied.", ephemeral=True)
+            accept.disabled = True
+            deny.disabled = True
+            await inter.message.edit(view=view)
 
-        accept_button.callback = accept_callback
-        deny_button.callback = deny_callback
-        view.add_item(accept_button)
-        view.add_item(deny_button)
+        accept.callback = accept_cb
+        deny.callback = deny_cb
+        view.add_item(accept)
+        view.add_item(deny)
 
-        # Send request to specified channel
-        channel = interaction.guild.get_channel(1353106180406509682)
+        channel = interaction.guild.get_channel(CALLSIGN_REQUEST_CHANNEL_ID)
         if channel:
             await channel.send(embed=embed, view=view)
             await interaction.response.send_message("Callsign request submitted!", ephemeral=True)
         else:
             await interaction.response.send_message("Error: Request channel not found.", ephemeral=True)
 
-# Arrest Modal (unchanged)
+# Modal for arrests
 class ArrestModal(discord.ui.Modal, title="Log an Arrest"):
     def __init__(self):
         super().__init__()
-        self.suspect = discord.ui.TextInput(
-            label="Suspect",
-            placeholder="Enter suspect(s) name",
-            required=True
-        )
-        self.charges = discord.ui.TextInput(
-            label="Charges",
-            placeholder="List the charges",
-            required=True,
-            style=discord.TextStyle.paragraph
-        )
-        self.primary_officer = discord.ui.TextInput(
-            label="Primary Officer",
-            placeholder="Enter primary officer name",
-            required=True
-        )
-        self.other_officers = discord.ui.TextInput(
-            label="Secondary and Tertiary Officers",
-            placeholder="Enter other officers names and their callsign or N/A",
-            required=False
-        )
-        self.notes = discord.ui.TextInput(
-            label="Notes",
-            placeholder="Additional notes (optional)",
-            required=False,
-            style=discord.TextStyle.paragraph
-        )
+        self.suspect = TextInput(label="Suspect", placeholder="Enter suspect(s) name", required=True)
+        self.charges = TextInput(label="Charges", placeholder="List the charges", style=TextStyle.paragraph, required=True)
+        self.primary_officer = TextInput(label="Primary Officer", placeholder="Enter primary officer name", required=True)
+        self.other_officers = TextInput(label="Secondary and Tertiary Officers", placeholder="Names + callsign or N/A", required=False)
+        self.notes = TextInput(label="Notes", placeholder="Additional notes (optional)", style=TextStyle.paragraph, required=False)
         self.add_item(self.suspect)
         self.add_item(self.charges)
         self.add_item(self.primary_officer)
@@ -128,178 +98,147 @@ class ArrestModal(discord.ui.Modal, title="Log an Arrest"):
 class Panel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Define the punishment roles
+        self.required_role_id = REQUIRED_ROLE_ID
         self.punishment_roles = [
-            1306382455044964415,  # Punishment Role 1
-            1306382453283225650,  # Punishment Role 2
-            1306382451228016660,  # Punishment Role 3
-            1306382449378594867,  # Punishment Role 4
-            1324540074834133033,  # Punishment Role 5
-            1324540189594353787   # Punishment Role 6
+            1306382455044964415, 1306382453283225650,
+            1306382451228016660, 1306382449378594867,
+            1324540074834133033, 1324540189594353787
         ]
-        self.required_role_id = 1292541838904791040  # Role ID to check
+        bot.add_listener(self.on_member_update, "on_member_update")
 
-    @commands.command(name="panel")
+    @commands.command()
     async def panel(self, ctx):
-        # Create the embed for the panel
         embed = discord.Embed(
             title="Welcome to Your Panel",
-            description="Below you can see buttons for the following options.",
+            description="Use the buttons below to access features.",
             color=discord.Color.blue()
         )
-        embed.add_field(
-            name="📝 Log Arrest",
-            value="Use this to Log an Arrest.",
-            inline=False
-        )
-        embed.add_field(
-            name="👮 View Punishments",
-            value="Use this to view your active Punishments.",
-            inline=False
-        )
-        embed.add_field(
-            name="📢 Request Callsign",
-            value="Use this to request a callsign.",
-            inline=False
-        )
+        embed.add_field(name="📝 Log Arrest", value="Use this to Log an Arrest.", inline=False)
+        embed.add_field(name="👮 View Punishments", value="See your active punishments.", inline=False)
+        embed.add_field(name="📢 Request Callsign", value="Request a unit callsign.", inline=False)
         embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/5/497/Los_Angeles_Police_Department_seal.svg/512px-Los_Angeles_Police_Department_seal.svg.png")
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1369422640003153961/1377358249044742174/Los_Angeles_Police_Department_1_1.png?ex=6838ac54&is=68375ad4&hm=e2dde275075c243188d3f18f71a984b486672877fff44ded4ae4baff3ca821fd&")
 
-        # Create the buttons
-        view = View(timeout=None)  # Persistent view
+        view = View(timeout=None)
 
-        # Log Arrest Button
-        log_arrest_button = Button(label="Log Arrest", style=discord.ButtonStyle.primary, custom_id="log_arrest")
-        async def log_arrest_callback(interaction: discord.Interaction):
-            modal = ArrestModal()
-            await interaction.response.send_modal(modal)
-        log_arrest_button.callback = log_arrest_callback
+        log_btn = Button(label="Log Arrest", style=discord.ButtonStyle.primary, custom_id="log_arrest")
+        log_btn.callback = lambda i: i.response.send_modal(ArrestModal())
 
-        # View Punishments Button
-        view_punishments_button = Button(label="View Punishments", style=discord.ButtonStyle.secondary, custom_id="view_punishments")
-        async def view_punishments_callback(interaction: discord.Interaction):
-            user = interaction.user
-            user_roles = [role.id for role in user.roles]
-            active_punishments = [role for role in self.punishment_roles if role in user_roles]
+        pun_btn = Button(label="View Punishments", style=discord.ButtonStyle.secondary, custom_id="view_punishments")
+        async def pun_cb(inter):
+            user_roles = [r.id for r in inter.user.roles]
+            active = [f"<@&{r}>" for r in self.punishment_roles if r in user_roles]
             embed = discord.Embed(
-                title=f"Punishments for - {user.display_name} -",
+                title=f"Punishments for - {inter.user.display_name} -",
+                description="\n".join(active) if active else "No active punishments.",
                 color=discord.Color.red(),
                 timestamp=datetime.now()
             )
-            embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/5/497/Los_Angeles_Police_Department_seal.svg/512px-Los_Angeles_Police_Department_seal.svg.png")
-            if active_punishments:
-                punishment_list = "\n".join([f"<@&{role_id}>" for role_id in active_punishments])
-                embed.description = punishment_list
-            else:
-                embed.description = "No active punishments."
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        view_punishments_button.callback = view_punishments_callback
+            await inter.response.send_message(embed=embed, ephemeral=True)
+        pun_btn.callback = pun_cb
 
-        # Callsign Request Button
-        callsign_button = Button(label="Request Callsign", style=discord.ButtonStyle.green, custom_id="request_callsign")
-        async def callsign_callback(interaction: discord.Interaction):
-            modal = CallsignModal()
-            await interaction.response.send_modal(modal)
-        callsign_button.callback = callsign_callback
+        call_btn = Button(label="Request Callsign", style=discord.ButtonStyle.green, custom_id="request_callsign")
+        call_btn.callback = lambda i: i.response.send_modal(CallsignModal())
 
-        # Add buttons to the view
-        view.add_item(log_arrest_button)
-        view.add_item(view_punishments_button)
-        view.add_item(callsign_button)
-
-        # Send the embed with the buttons
+        view.add_item(log_btn)
+        view.add_item(pun_btn)
+        view.add_item(call_btn)
         await ctx.send(embed=embed, view=view)
 
-    @commands.command(name="callsigns")
+    @commands.command()
     async def callsigns(self, ctx):
-        # Create embed for listing callsigns
-        embed = discord.Embed(
-            title="Callsigns",
-            color=discord.Color.blue(),
-            timestamp=datetime.now()
-        )
+        embed = discord.Embed(title="Callsigns", color=discord.Color.blue(), timestamp=datetime.now())
         if callsigns_db:
-            callsign_list = "\n".join([f"<@{user_id}>: {callsign}" for user_id, callsign in callsigns_db.items()])
-            embed.description = callsign_list
+            embed.description = "\n".join([f"<@{uid}>: {cs}" for uid, cs in callsigns_db.items()])
         else:
             embed.description = "No callsigns assigned."
-        channel = ctx.guild.get_channel(1344921844557414411)
-        if channel:
-            await channel.send(embed=embed)
-        else:
-            await ctx.send("Error: Callsign list channel not found.")
+        channel = ctx.guild.get_channel(CALLSIGN_LIST_CHANNEL_ID)
+        await (channel.send(embed=embed) if channel else ctx.send(embed=embed))
 
-    @commands.command(name="nocallsign")
+    @commands.command()
     async def nocallsign(self, ctx):
-        # Create embed for members without callsigns
+        role = ctx.guild.get_role(self.required_role_id)
+        if not role:
+            return await ctx.send("Error: Role not found.")
+        missing = [m.mention for m in role.members if m.id not in callsigns_db]
         embed = discord.Embed(
             title="Members Without Callsigns",
+            description="\n".join(missing) if missing else "All members have callsigns.",
             color=discord.Color.red(),
             timestamp=datetime.now()
         )
-        role = ctx.guild.get_role(self.required_role_id)
-        if not role:
-            await ctx.send("Error: Role not found.")
-            return
-        members_without_callsign = [member.mention for member in role.members if member.id not in callsigns_db]
-        if members_without_callsign:
-            embed.description = "\n".join(members_without_callsign)
-        else:
-            embed.description = "All members with this role have callsigns."
-        channel = ctx.guild.get_channel(1344921844557414411)
-        if channel:
-            await channel.send(embed=embed)
-        else:
-            await ctx.send("Error: Callsign list channel not found.")
+        channel = ctx.guild.get_channel(CALLSIGN_LIST_CHANNEL_ID)
+        await (channel.send(embed=embed) if channel else ctx.send(embed=embed))
 
-    @commands.command(name="copycallsigns")
+    @commands.command()
     async def copycallsigns(self, ctx):
-        # Check if the message is a reply
         if not ctx.message.reference:
-            await ctx.send("Error: You must reply to a message with a 'Callsigns' embed to use this command.")
-            return
+            return await ctx.send("You must reply to a callsign embed message.")
 
-        # Fetch the replied-to message
         try:
-            replied_message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+            ref_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         except discord.NotFound:
-            await ctx.send("Error: Replied message not found.")
-            return
+            return await ctx.send("Message not found.")
 
-        # Check if the replied message has an embed
-        if not replied_message.embeds or not replied_message.embeds[0].title == "Callsigns":
-            await ctx.send("Error: Replied message must contain a 'Callsigns' embed.")
-            return
+        if not ref_msg.embeds or ref_msg.embeds[0].title != "Callsigns":
+            return await ctx.send("Replied message must be a Callsigns embed.")
 
-        embed = replied_message.embeds[0]
-        if not embed.description or embed.description == "No callsigns assigned.":
-            await ctx.send("Error: The embed has no callsigns to copy.")
-            return
-
-        # Parse the embed description (format: <@user_id>: callsign)
-        added_count = 0
-        for line in embed.description.split("\n"):
+        added = 0
+        for line in ref_msg.embeds[0].description.splitlines():
             match = re.match(r"<@(\d+)>: (.+)", line)
             if match:
-                user_id = int(match.group(1))
-                callsign = match.group(2).strip()
-                callsigns_db[user_id] = callsign  # Add to database
-                added_count += 1
+                callsigns_db[int(match.group(1))] = match.group(2)
+                added += 1
+        await ctx.send(f"Successfully added {added} callsign(s) to the DB.")
 
-        await ctx.send(f"Successfully copied {added_count} callsign(s) to the database.")
+    @commands.command()
+    async def callsignadmin(self, ctx, action: str = None, member: discord.Member = None, *, callsign: str = None):
+        if not any(r.id == ALLOWED_ROLE_ID for r in ctx.author.roles):
+            # Send unauthorized embed
+            embed = discord.Embed(title="UNAUTHORIZED", description="You are not allowed to execute this command.", color=discord.Color.red())
+            await ctx.send(embed=embed)
+
+            # Send alert
+            alert = ctx.guild.get_channel(ALERT_CHANNEL_ID)
+            if alert:
+                alert_embed = discord.Embed(
+                    title="Attempted Use of a Restricted Command",
+                    color=discord.Color.orange(),
+                    timestamp=datetime.now()
+                )
+                alert_embed.add_field(name="User", value=ctx.author.mention, inline=False)
+                alert_embed.add_field(name="Command", value=ctx.message.content, inline=False)
+                alert_embed.add_field(name="Channel", value=ctx.channel.mention, inline=False)
+                alert_embed.add_field(name="Jump to Message", value=f"[Click Here]({ctx.message.jump_url})", inline=False)
+                await alert.send(embed=alert_embed)
+            return
+
+        if action not in ["add", "remove", "modify"] or not member or not callsign:
+            return await ctx.send("Usage:\n!callsignadmin add @user (callsign)\n!callsignadmin remove @user (callsign)\n!callsignadmin modify @user (new callsign)")
+
+        if action == "add":
+            callsigns_db[member.id] = callsign
+            await ctx.send(f"✅ Callsign `{callsign}` added for {member.mention}.")
+        elif action == "remove":
+            if member.id in callsigns_db:
+                del callsigns_db[member.id]
+                await ctx.send(f"❌ Callsign removed for {member.mention}.")
+            else:
+                await ctx.send(f"{member.mention} has no assigned callsign.")
+        elif action == "modify":
+            if member.id in callsigns_db:
+                callsigns_db[member.id] = callsign
+                await ctx.send(f"✏️ Callsign modified to `{callsign}` for {member.mention}.")
+            else:
+                await ctx.send(f"{member.mention} has no existing callsign. Use `add`.")
 
     async def on_member_update(self, before, after):
-        # Check if the required role was removed
         role = after.guild.get_role(self.required_role_id)
         if not role:
-            return  # Role not found, exit
-
-        had_role_before = role in before.roles
-        has_role_after = role in after.roles
-
-        # If the member lost the role and is in the callsign database, remove them
-        if had_role_before and not has_role_after and after.id in callsigns_db:
-            del callsigns_db[after.id]
+            return
+        if role in before.roles and role not in after.roles:
+            if after.id in callsigns_db:
+                del callsigns_db[after.id]
+                print(f"Removed {after.id} from callsign DB due to role loss.")
 
 async def setup(bot):
     await bot.add_cog(Panel(bot))
