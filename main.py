@@ -13,7 +13,7 @@ from keep_alive import keep_alive
 # Configuration
 GUILD_ID = 1292523481539543193  # Your guild ID
 BOT_TOKEN = os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA"  # Replace with your bot token
-SHARED_PANEL_CHANNEL = 123456789012345678  # Replace with shared panel channel ID for Sub-Divisions
+SHARED_PANEL_CHANNEL = 1294756718693060740  # Replace with shared panel channel ID for Sub-Divisions
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
 HR_ROLE_IDS = [1324522426771443813, 1339058176003407915]
@@ -32,14 +32,14 @@ APPLICATIONS = {
     'lapd_entry': {
         'name': 'LAPD | Entry',
         'questions': [
-            'Why do you want to join the LAPD?',
-            'What is your experience with roleplay?',
-            'How familiar are you with our server rules?'
+            'test',
+            'test',
+            'test'
         ],
-        'review_channel': 123456789012345678,  # Replace with channel ID
-        'panel_channel': 123456789012345678,   # Replace with LAPD panel channel ID
-        'role_id': 123456789012345678,        # Replace with role ID
-        'ping_role': 123456789012345678,      # Replace with ping role/user ID
+        'review_channel': 1308254140702392360,  # Replace with channel ID
+        'panel_channel': 1292534061394558986,   # Replace with LAPD panel channel ID
+        'role_id': 1306380858437144576,        # Replace with role ID
+        'ping_role': 1324522426771443813,      # Replace with ping role/user ID
         'panel_name': 'Los Angeles Police Department Entry Application',
         'panel_desc': (
             "Please click the button below to start the application.\n\n"
@@ -58,14 +58,14 @@ APPLICATIONS = {
     'gang_unit': {
         'name': 'Gang Unit | Entry',
         'questions': [
-            'What experience do you have with gang-related roleplay?',
-            'How would you handle a gang conflict scenario?',
-            'What is your availability for patrols?'
+            'test',
+            'test',
+            'test'
         ],
-        'review_channel': 123456789012345678,  # Replace with channel ID
+        'review_channel': 1399136987658719453,  # Replace with channel ID
         'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 123456789012345678,        # Replace with role ID
-        'ping_role': 123456789012345678,      # Replace with ping role/user ID
+        'role_id': 1379196070328008724,        # Replace with role ID
+        'ping_role': 1379193380201959454,      # Replace with ping role/user ID
         'dropdown_label': 'Gang Unit Application'
     },
     'swat_entry': {
@@ -75,49 +75,49 @@ APPLICATIONS = {
             'Describe a high-pressure situation you’ve managed.',
             'Why do you want to join SWAT?'
         ],
-        'review_channel': 123456789012345678,  # Replace with channel ID
+        'review_channel': 1404188642620080138,  # Replace with channel ID
         'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 123456789012345678,        # Replace with role ID
-        'ping_role': 123456789012345678,      # Replace with ping role/user ID
+        'role_id': 1348415029837430956,        # Replace with role ID
+        'ping_role': 1348413774528381101,      # Replace with ping role/user ID
         'dropdown_label': 'SWAT Application'
     },
     'internal_affairs': {
         'name': 'Internal Affairs',
         'questions': [
-            'What experience do you have investigating misconduct?',
-            'How would you ensure impartiality in investigations?',
-            'What motivates you to join Internal Affairs?'
+            'test',
+            'test',
+            'test'
         ],
-        'review_channel': 123456789012345678,  # Replace with channel ID
+        'review_channel': 1404187400867024997,  # Replace with channel ID
         'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 123456789012345678,        # Replace with role ID
-        'ping_role': 123456789012345678,      # Replace with ping role/user ID
+        'role_id': 1306382068116230264,        # Replace with role ID
+        'ping_role': 1306381893515870209,      # Replace with ping role/user ID
         'dropdown_label': 'IA Application'
     },
     'field_training': {
         'name': 'Field Training Program',
         'questions': [
-            'What experience do you have training others?',
-            'How would you teach a new recruit our procedures?',
-            'What is your approach to mentorship?'
+            'test',
+            'test',
+            'test'
         ],
-        'review_channel': 123456789012345678,  # Replace with channel ID
+        'review_channel': 1308254092434608168,  # Replace with channel ID
         'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 123456789012345678,        # Replace with role ID
-        'ping_role': 123456789012345678,      # Replace with ping role/user ID
+        'role_id': 1306381034895708193,        # Replace with role ID
+        'ping_role': 1306380914732957779,      # Replace with ping role/user ID
         'dropdown_label': 'FTO Application'
     },
     'sergeant': {
         'name': 'Sergeant',
         'questions': [
-            'What leadership experience do you have?',
-            'How would you manage a team of officers?',
-            'Why do you believe you’re ready for Sergeant?'
+            'test',
+            'test',
+            'test'
         ],
-        'review_channel': 123456789012345678,  # Replace with channel ID
-        'panel_channel': 123456789012345678,   # Replace with Sergeant panel channel ID
-        'role_id': 123456789012345678,        # Replace with role ID
-        'ping_role': 123456789012345678,      # Replace with ping role/user ID
+        'review_channel': 1404187637761179668,  # Replace with channel ID
+        'panel_channel': 1401639622752338072,   # Replace with Sergeant panel channel ID
+        'role_id': 1306387881803120670,        # Replace with role ID
+        'ping_role': 1339058176003407915,      # Replace with ping role/user ID
         'panel_name': 'Sergeant Application',
         'panel_desc': (
             "Please click the button below to start the application.\n\n"
@@ -134,14 +134,14 @@ APPLICATIONS = {
     'final_exam': {
         'name': 'Final Exam',
         'questions': [
-            'How have you prepared for the LAPD Final Exam?',
-            'What areas of our training do you feel most confident in?',
-            'How will you apply your training in real scenarios?'
+            'test',
+            'test',
+            'test'
         ],
-        'review_channel': 123456789012345678,  # Replace with channel ID
-        'panel_channel': 123456789012345678,   # Replace with Final Exam panel channel ID
-        'role_id': 123456789012345678,        # Replace with role ID
-        'ping_role': 123456789012345678,      # Replace with ping role/user ID
+        'review_channel': 1308254277592154123,  # Replace with channel ID
+        'panel_channel': 1292816066216591361,   # Replace with Final Exam panel channel ID
+        'role_id': 1306380762542637150,        # Replace with role ID
+        'ping_role': 1339058176003407915,      # Replace with ping role/user ID
         'panel_name': 'Final Exam',
         'panel_desc': (
             "Please click the button below to start the Final Exam.\n\n"
