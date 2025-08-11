@@ -194,7 +194,7 @@ APPLICATIONS = {
             'Explain the significance of the Safe Zone rule in maintaining a balanced and fair environment for players, and the exceptions to this rule.',
             'You are driving around and see a Police Officer abusing and cuff rushing. You don't know if he's WL or not. What do you do?',
             'While on patrol, your tires are shot out and two civilians approach your vehicle, carrying firearms. What do you do?',
-            'While in a training, you notice a LAPD Officer being very rude to other attendees but the host doesn't seem to care. What do you do?',
+            'While in a training, you notice a LAPD Officer being very rude to other attendees but the host doesnt seem to care. What do you do?',
             'You are in game and see a LAPD HR leading a group of LAPD around, causing VDM, RDM, and breaking many rules. The moderators are not responding. What do you do?',
             'Do you have any questions?'
             
