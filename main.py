@@ -98,7 +98,7 @@ APPLICATIONS = {
             'How active will you be on a scale of 1-10?',
             'What would you do during a riot? (+2 sentences)',
             'Do you understand that asking for your application to be read will result in IMMEDIATE denial?',
-            'What's your Roblox Username and Discord Username?'
+            'Whats your Roblox Username and Discord Username?'
         ],
         'review_channel': 1404188642620080138,
         'panel_channel': 1404120240689778750,  # Separate Metro panel channel
