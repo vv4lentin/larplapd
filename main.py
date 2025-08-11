@@ -13,7 +13,7 @@ from keep_alive import keep_alive
 # Configuration
 GUILD_ID = 1292523481539543193  # Your guild ID
 BOT_TOKEN = os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA"  # Replace with your bot token
-SHARED_PANEL_CHANNEL = 1294756718693060740  # Replace with shared panel channel ID for Sub-Divisions
+SHARED_PANEL_CHANNEL = 1294756718693060740  # Shared panel channel ID for Sub-Divisions
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
 HR_ROLE_IDS = [1324522426771443813, 1339058176003407915]
@@ -32,19 +32,28 @@ APPLICATIONS = {
     'lapd_entry': {
         'name': 'LAPD | Entry',
         'questions': [
-            'test',
-            'test',
-            'test'
+            'What is your Roblox username?',
+            'Are you over the age of 13?',
+            'How active are you on a scale from 1-10? What experience do you have being a law enforcement officer?',
+            'Why do you want to apply to be an officer?',
+            'Can you explain the difference between code 3 and 2.',
+            'When making a traffic stop the driver gets aggressive and starts to shout. What actions should you take and describe it in detail.',
+            'Can you describe in detail what you would do in preparation to responding to a 911 call about a robbery.',
+            'Why should I pick this application over the others?',
+            'Do you understand you will be given 2 weeks (14 days) to finish your probationary period. If it has not been completed before then you will be made to restart your application.',
+            'Do you understand the minimum quota is 2 hours a week and failure to complete the quota will resort in a warning.',
+            'Do you understand any disrespect to a higher command officer will not be tolerated and could lead to you being terminated.',
+            'Any questions?'
         ],
-        'review_channel': 1308254140702392360,  # Replace with channel ID
-        'panel_channel': 1292534061394558986,   # Replace with LAPD panel channel ID
-        'role_id': 1306380858437144576,        # Replace with role ID
-        'ping_role': 1324522426771443813,      # Replace with ping role/user ID
+        'review_channel': 1308254140702392360,
+        'panel_channel': 1292534061394558986,
+        'role_id': 1306380858437144576,
+        'ping_role': 1324522426771443813,
         'panel_name': 'Los Angeles Police Department Entry Application',
         'panel_desc': (
             "Please click the button below to start the application.\n\n"
             "**Requirements:**\n"
-            "- You must be 14 or older\n"
+            "- You must be 13 or older\n"
             "- You must have a decent SPaG\n"
             "- You must use common sense\n"
             "- You must be able to complete a minimum of 2 hours of duty per week\n"
@@ -58,66 +67,108 @@ APPLICATIONS = {
     'gang_unit': {
         'name': 'Gang Unit | Entry',
         'questions': [
-            'test',
-            'test',
-            'test'
+            'What is your Roblox and Discord username?',
+            'What is your LAPD Rank? ',
+            'Are you 13 or older? ',
+            'Do you have prior experience within the Gang Unit (G.U)?',
+            'If someone told you about a gang in the neighborhood, but they had no location what would you do?',
+            'What steps would you take to raid a gang house ?',
+            'What is the primary Objective of the Gang Unit (G.U) ?',
+            'What would your course of action be if you saw a person affiliated with a gang?',
+            'Do you agree to obey all commands that are given not only by Gang Unit command. But also LAPD Command? ',
+            'Do you have any questions ?'
         ],
-        'review_channel': 1399136987658719453,  # Replace with channel ID
-        'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 1379196070328008724,        # Replace with role ID
-        'ping_role': 1379193380201959454,      # Replace with ping role/user ID
+        'review_channel': 1399136987658719453,
+        'panel_channel': SHARED_PANEL_CHANNEL,
+        'role_id': 1379196070328008724,
+        'ping_role': 1379193380201959454,
         'dropdown_label': 'Gang Unit Application'
     },
-    'swat_entry': {
-        'name': 'SWAT | Entry',
+    'metro_entry': {
+        'name': 'Metro | Entry',
         'questions': [
-            'What tactical experience do you have in roleplay?',
-            'Describe a high-pressure situation you’ve managed.',
-            'Why do you want to join SWAT?'
+            'How old are you?',
+            'Why do you want to join the LAPD METRO? (+2 sentences)',
+            'What will you bring to the LAPD METRO? (+2 sentences) ',
+            'How would you respond to a bank robbery? (+3 sentences) ',
+            'Is METRO permitted to patrol?',
+            'What would your first instinct be on-scene on at a hostage Scene?  (+3 sentences) ',
+            'Do you understand the Laws and Miranda rights?',
+            'On a scale of 1-10 how well do you know the 10 codes?',
+            'How active will you be on a scale of 1-10?',
+            'What would you do during a riot? (+2 sentences)',
+            'Do you understand that asking for your application to be read will result in IMMEDIATE denial?',
+            'What's your Roblox Username and Discord Username?'
         ],
-        'review_channel': 1404188642620080138,  # Replace with channel ID
-        'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 1348415029837430956,        # Replace with role ID
-        'ping_role': 1348413774528381101,      # Replace with ping role/user ID
-        'dropdown_label': 'SWAT Application'
+        'review_channel': 1404188642620080138,
+        'panel_channel': 1404120240689778750,  # Separate Metro panel channel
+        'role_id': 1348415029837430956,
+        'ping_role': 1348413774528381101,
+        'panel_name': 'Metro Application',
+        'panel_desc': (
+            "Please click the button below to start the application.\n\n"
+            "**Requirements:**\n"
+            "- You must be 14 or older\n"
+            "- You must have a decent SPaG\n"
+            "- You must use common sense\n"
+            "- You must be dedicated in the division\n"
+            "- You must be capable to answer questions\n"
+            "- You may not use AI\n"
+            "- You must be PO III or higher\n\n"
+            "Good luck!"
+        ),
+        'input_type': 'button'
     },
     'internal_affairs': {
         'name': 'Internal Affairs',
         'questions': [
-            'test',
-            'test',
-            'test'
+            'use docs',
+            'use docs',
+            'use docs or tell farts to send me questions'
         ],
-        'review_channel': 1404187400867024997,  # Replace with channel ID
-        'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 1306382068116230264,        # Replace with role ID
-        'ping_role': 1306381893515870209,      # Replace with ping role/user ID
+        'review_channel': 1404187400867024997,
+        'panel_channel': SHARED_PANEL_CHANNEL,
+        'role_id': 1306382068116230264,
+        'ping_role': 1306381893515870209,
         'dropdown_label': 'IA Application'
     },
     'field_training': {
         'name': 'Field Training Program',
         'questions': [
-            'test',
-            'test',
-            'test'
+            'Why do you want to be a TO or Training Officer? 2+ sentences',
+            'What are the primary responsibilities of a Field Training Officer (FTO), specifically within the LAPD?',
+            'What would you do in the situation your rookie was getting annoyed with you and started shouting?',
+            'What prior experience do you have training or mentoring new recruits in Law enforcement?',
+            'How would you ensure new officers understand and follow the department's rules and standard operating procedures?',
+            'Can you describe a situation where you had to handle a difficult or inexperienced recruit? How did you manage the situation?',
+            'How do you handle a recruit who is not following commands or making consistent mistakes in the field?',
+            'Do you understand being a TO comes with a lot of responsibility's?',
+            'Do you understand you will need to put in a minimum of 3 training per week to continue being a TO?',
+            'Have you ever had any Internal Affairs cases on you?',
+            'Do you understand if you are ever being investigated by IA your placement of a TO will be removed.',
+            'What is your rank and do you have any questions?'
         ],
-        'review_channel': 1308254092434608168,  # Replace with channel ID
-        'panel_channel': SHARED_PANEL_CHANNEL,  # Shared panel channel
-        'role_id': 1306381034895708193,        # Replace with role ID
-        'ping_role': 1306380914732957779,      # Replace with ping role/user ID
+        'review_channel': 1308254092434608168,
+        'panel_channel': SHARED_PANEL_CHANNEL,
+        'role_id': 1306381034895708193,
+        'ping_role': 1306380914732957779,
         'dropdown_label': 'FTO Application'
     },
     'sergeant': {
         'name': 'Sergeant',
         'questions': [
-            'test',
-            'test',
-            'test'
+            ' Why do you want to be a police sergeant? ',
+            ' What are your strengths and weaknesses? ',
+            ' Do you have any aspirations for the academy? ',
+            ' What benefical ideas can you bring to both the Los Angeles Dept and the overall academy? ',
+            ' Do you understand past sergeant you are a key part to the Department and must always stay professional, failure to do so may demote you back to Police Officer 4 or below ',
+            ' With your strenghs in mind, how do they apply to this role? ',
+                ' What are key qualities for being a Supervisor/ Sergeant?'
         ],
-        'review_channel': 1404187637761179668,  # Replace with channel ID
-        'panel_channel': 1401639622752338072,   # Replace with Sergeant panel channel ID
-        'role_id': 1306387881803120670,        # Replace with role ID
-        'ping_role': 1339058176003407915,      # Replace with ping role/user ID
+        'review_channel': 1404187637761179668,
+        'panel_channel': 1401639622752338072,
+        'role_id': 1306387881803120670,
+        'ping_role': 1339058176003407915,
         'panel_name': 'Sergeant Application',
         'panel_desc': (
             "Please click the button below to start the application.\n\n"
@@ -134,14 +185,25 @@ APPLICATIONS = {
     'final_exam': {
         'name': 'Final Exam',
         'questions': [
-            'test',
-            'test',
-            'test'
+            'Explain the Chain of Command and its importance.',
+            'What is the process for a Officer to achieve Grappler Certification, and why is this certification significant?',
+            'Outline the steps a probationary officer must complete to transition from the Academy to becoming a Patrol Officer?',
+            'What role does the FTO program play in shaping new recruits. 2+ sentances.',
+            'Describe the procedures that must be taken when performing a traffic stop. 2+ sentences. ',
+            'Explain the rule of department personnel adhering to realistic driving practices.',
+            'Explain the significance of the Safe Zone rule in maintaining a balanced and fair environment for players, and the exceptions to this rule.',
+            'You are driving around and see a Police Officer abusing and cuff rushing. You don't know if he's WL or not. What do you do?',
+            'While on patrol, your tires are shot out and two civilians approach your vehicle, carrying firearms. What do you do?',
+            'While in a training, you notice a LAPD Officer being very rude to other attendees but the host doesn't seem to care. What do you do?',
+            'You are in game and see a LAPD HR leading a group of LAPD around, causing VDM, RDM, and breaking many rules. The moderators are not responding. What do you do?',
+            'Do you have any questions?'
+            
+            
         ],
-        'review_channel': 1308254277592154123,  # Replace with channel ID
-        'panel_channel': 1292816066216591361,   # Replace with Final Exam panel channel ID
-        'role_id': 1306380762542637150,        # Replace with role ID
-        'ping_role': 1339058176003407915,      # Replace with ping role/user ID
+        'review_channel': 1308254277592154123,
+        'panel_channel': 1292816066216591361,
+        'role_id': 1306380762542637150,
+        'ping_role': 1339058176003407915,
         'panel_name': 'Final Exam',
         'panel_desc': (
             "Please click the button below to start the Final Exam.\n\n"
@@ -155,7 +217,7 @@ APPLICATIONS = {
     }
 }
 
-# Global variables from your code
+# Global variables
 auto_role_enabled = True
 role_to_assign = discord.Object(id=AUTOROLE_ROLE_ID)
 sleep_mode = True
@@ -217,21 +279,7 @@ async def on_ready():
             # Create panel embed
             embed = discord.Embed(
                 title=app_data.get('panel_name', 'Application Panel'),
-                description=(
-                    app_data.get('panel_desc', 'Please select an application to start.') if app_type not in ['gang_unit', 'swat_entry', 'internal_affairs', 'field_training']
-                    else (
-                        "Please select an application in the dropdown below to start the application.\n\n"
-                        "**Requirements:**\n"
-                        "- You must be 14 or older\n"
-                        "- You must have a decent SPaG\n"
-                        "- You must use common sense\n"
-                        "- You must be dedicated in the division\n"
-                        "- You must be capable to answer questions\n"
-                        "- You may not use AI\n"
-                        "- You must be PO III or higher\n\n"
-                        "Good luck!"
-                    )
-                ),
+                description=app_data.get('panel_desc', 'Please select an application to start.'),
                 color=discord.Color.blue()
             )
             embed.set_footer(text="Los Angeles Police Department")
@@ -257,7 +305,7 @@ class ApplicationView(discord.ui.View):
                 style=discord.ButtonStyle.green,
                 custom_id=f"apply_{app_type}"
             ))
-        elif app_type in ['gang_unit', 'swat_entry', 'internal_affairs', 'field_training']:
+        elif app_type in ['gang_unit', 'internal_affairs', 'field_training']:
             options = [
                 discord.SelectOption(label=APPLICATIONS[atype]['dropdown_label'], value=atype)
                 for atype in APPLICATIONS
@@ -270,6 +318,7 @@ class ApplicationView(discord.ui.View):
     async def select_callback(self, interaction: discord.Interaction):
         selected_app_type = interaction.data['values'][0]
         user = interaction.user
+        print(f"Dropdown selected: {selected_app_type} by {user.name} ({user.id})")
         await interaction.response.send_message(
             f"Please check your DMs to start the {APPLICATIONS[selected_app_type]['name']} application!",
             ephemeral=True
@@ -285,20 +334,31 @@ class ApplicationView(discord.ui.View):
 # Handle button clicks
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    if interaction.type == discord.InteractionType.component and interaction.data['custom_id'].startswith('apply_'):
-        app_type = interaction.data['custom_id'].split('_')[1]
-        user = interaction.user
-        await interaction.response.send_message(
-            f"Please check your DMs to start the {APPLICATIONS[app_type]['name']} application!",
-            ephemeral=True
-        )
-        try:
-            await user.send(f"Starting your {APPLICATIONS[app_type]['name']} application. Please answer the following questions:")
-            responses = await collect_application_responses(user, app_type)
-            if responses:
-                await submit_application(user, app_type, responses)
-        except discord.Forbidden:
-            await interaction.followup.send("I cannot send you DMs. Please enable DMs from server members.", ephemeral=True)
+    if interaction.type == discord.InteractionType.component:
+        custom_id = interaction.data.get('custom_id', '')
+        print(f"Interaction received: custom_id={custom_id}, user={interaction.user.name} ({interaction.user.id})")
+        if custom_id.startswith('apply_'):
+            app_type = custom_id.split('_')[1]
+            if app_type in APPLICATIONS:
+                user = interaction.user
+                await interaction.response.send_message(
+                    f"Please check your DMs to start the {APPLICATIONS[app_type]['name']} application!",
+                    ephemeral=True
+                )
+                try:
+                    await user.send(f"Starting your {APPLICATIONS[app_type]['name']} application. Please answer the following questions:")
+                    responses = await collect_application_responses(user, app_type)
+                    if responses:
+                        await submit_application(user, app_type, responses)
+                except discord.Forbidden:
+                    await interaction.followup.send("I cannot send you DMs. Please enable DMs from server members.", ephemeral=True)
+            else:
+                print(f"Invalid app_type: {app_type}")
+        elif custom_id == 'subdivision_select':
+            # Handled by ApplicationView.select_callback
+            pass
+        else:
+            print(f"Unhandled component interaction: {custom_id}")
 
 # Collect application responses in DMs
 async def collect_application_responses(user, app_type):
@@ -434,7 +494,7 @@ class ReasonModal(discord.ui.Modal, title="Provide Reason"):
         await interaction.response.defer()
         self.stop()
 
-# Existing commands from your code
+# Existing commands
 @bot.command()
 async def say(ctx, *, message: str):
     allowed_user_id = 1335497299773620287
