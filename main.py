@@ -494,6 +494,58 @@ class ReasonModal(discord.ui.Modal, title="Provide Reason"):
         await interaction.response.defer()
         self.stop()
 
+@bot.command(name='roleall')
+@commands.has_permissions(administrator=True)  # Restrict to admins
+async def roleall(ctx, role1: discord.Role, role2: discord.Role):
+    # Check if the bot has permission to manage roles
+    if not ctx.guild.me.guild_permissions.manage_roles:
+        await ctx.send("I don't have permission to manage roles!")
+        return
+
+    # Check if the bot's highest role is above both role1 and role2
+    if ctx.guild.me.top_role <= role1 or ctx.guild.me.top_role <= role2:
+        await ctx.send("I can't assign roles higher than or equal to my highest role!")
+        return
+
+    # Check if the command issuer's highest role is above both role1 and role2
+    if ctx.author.top_role <= role1 or ctx.author.top_role <= role2:
+        await ctx.send("You can't manage roles higher than or equal to your highest role!")
+        return
+
+    # Get all members with role1
+    members_with_role1 = [member for member in ctx.guild.members if role1 in member.roles]
+
+    if not members_with_role1:
+        await ctx.send(f"No members have the role {role1.name}.")
+        return
+
+    # Assign role2 to members with role1
+    success_count = 0
+    for member in members_with_role1:
+        try:
+            await member.add_roles(role2)
+            success_count += 1
+        except discord.Forbidden:
+            await ctx.send(f"Failed to assign {role2.name} to {member.name} due to insufficient permissions.")
+            return
+        except Exception as e:
+            await ctx.send(f"An error occurred while assigning {role2.name} to {member.name}: {e}")
+            return
+
+    await ctx.send(f"Successfully assigned {role2.name} to {success_count} member(s) with {role1.name}.")
+
+# Error handling for the command
+@roleall.error
+async def roleall_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You need Administrator permissions to use this command!")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please provide two roles! Usage: !roleall <role1> <role2>")
+    elif isinstance(error, commands.RoleNotFound):
+        await ctx.send("One or both roles were not found! Please mention valid roles.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+        
 # Existing commands
 @bot.command()
 async def say(ctx, *, message: str):
