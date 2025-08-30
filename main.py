@@ -157,13 +157,13 @@ APPLICATIONS = {
     'sergeant': {
         'name': 'Sergeant',
         'questions': [
-            ' Why do you want to be a police sergeant? ',
-            ' What are your strengths and weaknesses? ',
-            ' Do you have any aspirations for the academy? ',
-            ' What benefical ideas can you bring to both the Los Angeles Dept and the overall academy? ',
-            ' Do you understand past sergeant you are a key part to the Department and must always stay professional, failure to do so may demote you back to Police Officer 4 or below ',
-            ' With your strenghs in mind, how do they apply to this role? ',
-            ' What are key qualities for being a Supervisor/ Sergeant?'
+            'Why do you want to be a police sergeant? ',
+            'What are your strengths and weaknesses? ',
+            'Do you have any aspirations for the academy? ',
+            'What benefical ideas can you bring to both the Los Angeles Dept and the overall academy? ',
+            'Do you understand past sergeant you are a key part to the Department and must always stay professional, failure to do so may demote you back to Police Officer 4 or below ',
+            'With your strenghs in mind, how do they apply to this role? ',
+            'What are key qualities for being a Supervisor/ Sergeant?'
         ],
         'review_channel': 1404187637761179668,
         'panel_channel': 1401639622752338072,
@@ -212,166 +212,26 @@ APPLICATIONS = {
             "Good luck!"
         ),
         'dropdown_label': 'Final Exam Application'
+    },
+    'vkz3d': {
+        'name': 'Vkz3D',
+        'questions': [
+            'What is your Roblox username?',
+            'Are you over the age of 13?',
+            'How active are you on a scale from 1-10?',
+            'What experience do you have with 3D modeling or design?',
+            'Why do you want to join the Vkz3D team?',
+            'Can you provide a link to any previous 3D modeling work or portfolio? (If none, explain your skills.)',
+            'Do you understand the minimum commitment is 5 hours a week?',
+            'Any questions?'
+        ],
+        'review_channel': 1308254140702392360,  # Placeholder, update as needed
+        'panel_channel': SHARED_PANEL_CHANNEL,
+        'role_id': 1306380858437144576,  # Placeholder, update as needed
+        'ping_role': 1324522426771443813,  # Placeholder, update as needed
+        'dropdown_label': 'Vkz3D Application'
     }
 }
-
-# Global variables
-auto_role_enabled = True
-role_to_assign = discord.Object(id=AUTOROLE_ROLE_ID)
-sleep_mode = True
-loaded_cogs = []
-bot.uptime = datetime.utcnow()
-
-# Bot check for sleep mode
-@bot.check
-async def block_commands_in_sleep_mode(ctx):
-    if await bot.is_owner(ctx.author):
-        return True  # Bot owner can use all commands regardless of sleep mode
-    if not sleep_mode:
-        return True
-    if ctx.command.name == "start":
-        return True  # Allow start command for non-owners
-    embed = discord.Embed(
-        title="Bot is in sleep mode.",
-        description="Bot is in sleep mode, all commands are unavailable except for the bot owner. Please contact the bot developer to start it.",
-        color=discord.Color.red()
-    )
-    embed.set_footer(text=f"Command used: {ctx.command.name} | User ID: {ctx.author.id}")
-    await ctx.send(embed=embed)
-    return False
-
-# Create application panels in panel channels and delete non-pinned messages
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user.name} ({bot.user.id})")
-    print(f"Connected to {len(bot.guilds)} guilds")
-    print("Bot is ready!")
-    try:
-        activity = discord.Activity(
-            type=discord.ActivityType.playing,
-            name="Waiting for developers to start me.."
-        )
-        await bot.change_presence(status=discord.Status.idle, activity=activity)
-        guild = discord.Object(id=GUILD_ID)
-        synced = await bot.tree.sync(guild=guild)
-        print(f"Synced {len(synced)} command(s) to guild {guild.id}")
-    except Exception as e:
-        print(f"Failed to sync commands to guild: {e}")
-
-    # Create application panels
-    guild = bot.get_guild(GUILD_ID)
-    created_panels = set()  # Track created panel channels to avoid duplicates
-    panel_channels = set(app_data['panel_channel'] for app_data in APPLICATIONS.values())
-    
-    for channel_id in panel_channels:
-        panel_channel = guild.get_channel(channel_id)
-        if not panel_channel:
-            print(f"Channel {channel_id} not found.")
-            continue
-        if channel_id in created_panels:
-            continue
-            
-        # Delete all non-pinned messages in the channel
-        try:
-            async for message in panel_channel.history(limit=100):  # Adjust limit if needed
-                if not message.pinned:
-                    await message.delete()
-        except discord.Forbidden:
-            print(f"Cannot delete messages in channel {panel_channel.name} due to missing permissions.")
-        except discord.HTTPException as e:
-            print(f"Failed to delete messages in channel {panel_channel.name}: {e}")
-
-        # Find applications for this channel
-        apps_for_channel = [
-            app_type for app_type, app_data in APPLICATIONS.items()
-            if app_data['panel_channel'] == channel_id
-        ]
-        if not apps_for_channel:
-            continue
-
-        # Use the panel_name and panel_desc from the first application for this channel
-        app_data = APPLICATIONS[apps_for_channel[0]]
-        embed = discord.Embed(
-            title=app_data.get('panel_name', 'Application Panel'),
-            description=app_data.get('panel_desc', 'Please select an application from the dropdown below to start.'),
-            color=discord.Color.blue()
-        )
-        embed.set_footer(text="Los Angeles Police Department")
-        view = ApplicationView(apps_for_channel)
-        try:
-            await panel_channel.send(embed=embed, view=view)
-            created_panels.add(channel_id)
-        except discord.Forbidden:
-            print(f"Cannot send panel in channel {panel_channel.name} due to missing permissions.")
-        except discord.HTTPException as e:
-            print(f"Failed to send panel in channel {panel_channel.name}: {e}")
-    print("Application panels created.")
-
-# Dropdown for starting an application
-class ApplicationView(discord.ui.View):
-    def __init__(self, app_types):
-        super().__init__(timeout=None)
-        self.app_types = app_types
-        # Create dropdown with all applications for this panel
-        options = [
-            discord.SelectOption(label=APPLICATIONS[app_type].get('dropdown_label', APPLICATIONS[app_type]['name']), value=app_type)
-            for app_type in app_types
-        ]
-        select = discord.ui.Select(placeholder="Select an application", options=options, custom_id="application_select")
-        select.callback = self.select_callback
-        self.add_item(select)
-
-    async def select_callback(self, interaction: discord.Interaction):
-        selected_app_type = interaction.data['values'][0]
-        user = interaction.user
-        print(f"Dropdown selected: {selected_app_type} by {user.name} ({user.id})")
-        await interaction.response.send_message(
-            f"Please check your DMs to start the {APPLICATIONS[selected_app_type]['name']} application!",
-            ephemeral=True
-        )
-        try:
-            await user.send(f"Starting your {APPLICATIONS[selected_app_type]['name']} application. Please answer the following questions:")
-            responses = await collect_application_responses(user, selected_app_type)
-            if responses:
-                await submit_application(user, selected_app_type, responses)
-        except discord.Forbidden:
-            await interaction.followup.send("I cannot send you DMs. Please enable DMs from server members.", ephemeral=True)
-
-# Handle dropdown interactions
-@bot.event
-async def on_interaction(interaction: discord.Interaction):
-    if interaction.type == discord.InteractionType.component:
-        custom_id = interaction.data.get('custom_id', '')
-        print(f"Interaction received: custom_id={custom_id}, user={interaction.user.name} ({interaction.user.id})")
-        if custom_id == 'application_select':
-            # Handled by ApplicationView.select_callback
-            pass
-        else:
-            print(f"Unhandled component interaction: {custom_id}")
-
-# Collect application responses in DMs
-async def collect_application_responses(user, app_type):
-Vkz3D = {
-    'name': 'Vkz3D',
-    'questions': [
-        'What is your Roblox username?',
-        'Are you over the age of 13?',
-        'How active are you on a scale from 1-10?',
-        'What experience do you have with 3D modeling or design?',
-        'Why do you want to join the Vkz3D team?',
-        'Can you provide a link to any previous 3D modeling work or portfolio? (If none, explain your skills.)',
-        'Do you understand the minimum commitment is 5 hours a week?',
-        'Any questions?'
-    ],
-    'review_channel': 1308254140702392360,
-    'panel_channel': SHARED_PANEL_CHANNEL,
-    'role_id': 1306380858437144576,
-    'ping_role': 1324522426771443813,
-    'dropdown_label': 'Vkz3D Application'
-}
-
-# Add Vkz3D to APPLICATIONS
-APPLICATIONS['vkz3d'] = Vkz3D
 
 # Global variables
 auto_role_enabled = True
@@ -682,17 +542,6 @@ async def roleall(ctx, role1: discord.Role, role2: discord.Role):
     await ctx.send(f"Successfully assigned {role2.name} to {success_count} member(s) with {role1.name}.")
 
 # Error handling for the command
-@roleall.error
-async def roleall_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You need Administrator permissions to use this command!")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Please provide two roles! Usage: !roleall <role1> <role2>")
-    elif isinstance(error, commands.RoleNotFound):
-        await ctx.send("One or both roles were not found! Please mention valid roles.")
-    else:
-        await ctx.send(f"An error occurred: {error}")
-
 @bot.command()
 async def say(ctx, *, message: str):
     allowed_user_id = 1335497299773620287
