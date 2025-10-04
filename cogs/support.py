@@ -1,702 +1,430 @@
 import discord
 from discord.ext import commands
-from discord import ui
-import io
-from datetime import datetime
-import logging
-import traceback
+import json
+from discord.ui import Select, View
+from io import StringIO
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Configuration
-SUPPORT_ROLES = {
-    "general": 1306382245895868476,
-    "ia": 1306381893515870209,
-    "boc": 1361565373593292851,
-    "botdev": 1337050305153470574
-}
-
-CONFIG = {
-    "panel_channel_id": 1292533788974387425,
-    "transcript_channel_id": 1331018524218626100,
-    "log_channel_id": 1331018524218626100,
-    "ticket_prefixes": {
-        "general": "g",
-        "ia": "ia",
-        "boc": "boc",
-        "botdev": "botdev"
-    },
-    "max_tickets_per_user": 4,
-    "ticket_categories": {
-        "general": 1376216650000633957,
-        "ia": 1376216515191509082,
-        "boc": 1376216153256362044,
-        "botdev": 1376217124238000269
-    }
-}
-
-# Mapping for ticket types to display names
-TICKET_TYPE_MAPPING = {
-    "general": {"display": "General Ticket", "description": "General support help", "emoji": "❓"},
-    "ia": {"display": "Internal Affairs Ticket", "description": "Report an LAPD Officer", "emoji": "🚔"},
-    "boc": {"display": "Board of Chiefs", "description": "Highly sensitive issues, important things", "emoji": "👑"},
-    "botdev": {"display": "Bot Development Ticket", "description": "Report a bug", "emoji": "🤖"}
-}
-
-class TicketActionView(ui.View):
-    def __init__(self, cog, ticket_data):
-        super().__init__(timeout=None)
-        self.cog = cog
-        self.owner = ticket_data["owner"]
-        self.ticket_type = ticket_data["type"]
-
-    @ui.button(label="Claim", style=discord.ButtonStyle.primary, emoji="✅")
-    async def claim(self, interaction: discord.Interaction, button: ui.Button):
-        if not any(role.id in SUPPORT_ROLES.values() for role in interaction.user.roles):
-            await interaction.response.send_message("You don't have permission to claim tickets.", ephemeral=True)
-            return
-        
-        if self.cog.ticket_data[interaction.channel.id]["claimed_by"]:
-            await interaction.response.send_message("This is already claimed.", ephemeral=True)
-            return
-
-        self.cog.ticket_data[interaction.channel.id]["claimed_by"] = interaction.user
-        self.cog.ticket_data[interaction.channel.id]["status"] = "claimed"
-        prefix = CONFIG["ticket_prefixes"].get(self.ticket_type, self.ticket_type)
-        await interaction.channel.edit(
-            name=f"🟢-{prefix}-{self.owner.name.lower()}",
-            topic=f"Claimed by {interaction.user.display_name} | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}"
-        )
-        embed = discord.Embed(
-            title="Ticket Claimed",
-            description=f"Ticket claimed by {interaction.user.mention}",
-            color=discord.Color.green(),
-            timestamp=datetime.now()
-        )
-        await interaction.response.send_message(embed=embed)
-        button.disabled = True
-        await interaction.message.edit(view=self)
-        await self.cog.log_action("claim", interaction.user, interaction.channel, f"Claimed by {interaction.user.display_name}")
-
-    @ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🔒")
-    async def close(self, interaction: discord.Interaction, button: ui.Button):
-        await self.cog.close_ticket(interaction, reason="Closed via button")
-
-class CloseActionView(ui.View):
-    def __init__(self, cog, ticket_data):
-        super().__init__(timeout=None)
-        self.cog = cog
-        self.owner = ticket_data["owner"]
-        self.ticket_type = ticket_data["type"]
-
-    @ui.button(label="Transcript", style=discord.ButtonStyle.primary, emoji="📜")
-    async def transcript(self, interaction: discord.Interaction, button: ui.Button):
-        await interaction.response.defer()
-        await self.cog.send_transcript(interaction.channel)
-        await interaction.followup.send("Transcript sent.", ephemeral=True)
-
-    @ui.button(label="Delete", style=discord.ButtonStyle.danger, emoji="🗑️")
-    async def delete(self, interaction: discord.Interaction, button: ui.Button):
-        embed = discord.Embed(
-            title="Ticket Deletion",
-            description="Deleting ticket...",
-            color=discord.Color.red(),
-            timestamp=datetime.now()
-        )
-        await interaction.response.send_message(embed=embed)
-        await self.cog.log_action("delete", interaction.user, interaction.channel, "Ticket deleted")
-        await interaction.channel.delete()
-
-    @ui.button(label="Reopen", style=discord.ButtonStyle.success, emoji="🔄")
-    async def reopen(self, interaction: discord.Interaction, button: ui.Button):
-        await interaction.channel.edit_permissions(self.owner, read_messages=True, send_messages=True)
-        self.cog.ticket_data[interaction.channel.id]["status"] = "open"
-        prefix = CONFIG["ticket_prefixes"].get(self.ticket_type, self.ticket_type)
-        await interaction.channel.edit(
-            name=f"🔴-{prefix}-{self.owner.name.lower()}",
-            topic=f"Open | {TICKET_TYPE_MAPPING[self.ticket_type]['display']}"
-        )
-        embed = discord.Embed(
-            title="Ticket Reopened",
-            description="Ticket has been reopened.",
-            color=discord.Color.green(),
-            timestamp=datetime.now()
-        )
-        await interaction.response.send_message(embed=embed)
-        await interaction.channel.send(f"{self.owner.mention} Your {TICKET_TYPE_MAPPING[self.ticket_type]['display']} ticket has been reopened.")
-        await self.cog.log_action("reopen", interaction.user, interaction.channel, "Ticket reopened")
-        await interaction.message.delete()
-
-class TicketReasonModal(ui.Modal, title="Ticket Creation Reason"):
-    def __init__(self, cog, ticket_type):
-        super().__init__()
-        self.cog = cog
-        self.ticket_type = ticket_type
-        self.reason = ui.TextInput(
-            label="Reason for Opening Ticket",
-            placeholder="Enter the reason for creating this ticket...",
-            style=discord.TextStyle.paragraph,
-            required=True
-        )
-        self.add_item(self.reason)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await self.cog.create_ticket(interaction, self.ticket_type, self.reason.value)
-
-class SupportDropdown(ui.Select):
-    def __init__(self, cog):
-        self.cog = cog
-        options = [
-            discord.SelectOption(
-                label=TICKET_TYPE_MAPPING["general"]["display"],
-                description=TICKET_TYPE_MAPPING["general"]["description"],
-                emoji=TICKET_TYPE_MAPPING["general"]["emoji"],
-                value="general"
-            ),
-            discord.SelectOption(
-                label=TICKET_TYPE_MAPPING["ia"]["display"],
-                description=TICKET_TYPE_MAPPING["ia"]["description"],
-                emoji=TICKET_TYPE_MAPPING["ia"]["emoji"],
-                value="ia"
-            ),
-            discord.SelectOption(
-                label=TICKET_TYPE_MAPPING["boc"]["display"],
-                description=TICKET_TYPE_MAPPING["boc"]["description"],
-                emoji=TICKET_TYPE_MAPPING["boc"]["emoji"],
-                value="boc"
-            ),
-            discord.SelectOption(
-                label=TICKET_TYPE_MAPPING["botdev"]["display"],
-                description=TICKET_TYPE_MAPPING["botdev"]["description"],
-                emoji=TICKET_TYPE_MAPPING["botdev"]["emoji"],
-                value="botdev"
-            )
-        ]
-        super().__init__(placeholder="Select ticket type...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        try:
-            ticket_type = self.values[0]
-            user_tickets = sum(1 for data in self.cog.ticket_data.values() if data.get("owner") and data.get("owner").id == interaction.user.id)
-            if user_tickets >= CONFIG["max_tickets_per_user"]:
-                embed = discord.Embed(
-                    title="Ticket Limit Reached",
-                    description=f"You've reached the maximum of {CONFIG['max_tickets_per_user']} open tickets.",
-                    color=discord.Color.red(),
-                    timestamp=datetime.now()
-                )
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-                return
-            await interaction.response.send_modal(TicketReasonModal(self.cog, ticket_type))
-        except Exception as e:
-            logger.error(f"Error in dropdown callback: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description="Failed to process ticket creation. Please try again.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-class SupportDropdownView(ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=None)
-        self.cog = cog
-        self.add_item(SupportDropdown(cog))
-
-class CloseRequestView(ui.View):
-    def __init__(self, cog):
-        super().__init__(timeout=None)
-        self.cog = cog
-        self.reason_modal = CloseReasonModal(cog)
-
-    @ui.button(label="Close", style=discord.ButtonStyle.danger, emoji="🔒")
-    async def close(self, interaction: discord.Interaction, button: ui.Button):
-        await interaction.response.send_modal(self.reason_modal)
-
-    @ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
-    async def cancel(self, interaction: discord.Interaction, button: ui.Button):
-        embed = discord.Embed(
-            title="Close Request Cancelled",
-            description="Close request cancelled.",
-            color=discord.Color.greyple(),
-            timestamp=datetime.now()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        await interaction.message.delete()
-
-class CloseReasonModal(ui.Modal, title="Close Ticket"):
-    def __init__(self, cog):
-        super().__init__()
-        self.cog = cog
-        self.reason = ui.TextInput(
-            label="Reason for Closing",
-            placeholder="Enter the reason for closing the ticket...",
-            style=discord.TextStyle.paragraph,
-            required=True
-        )
-        self.add_item(self.reason)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await self.cog.close_ticket(interaction, reason=self.reason.value)
-
-class Support(commands.Cog):
+class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.ticket_data = {}  # In-memory storage, no JSON
+        self.data_file = "tickets_data.json"
+        self.load_data()
+        self.bot.add_view(self.get_ticket_view())
 
-    async def create_ticket(self, interaction: discord.Interaction, ticket_type: str, reason: str):
-        if ticket_type not in TICKET_TYPE_MAPPING:
-            embed = discord.Embed(
-                title="Error",
-                description="Invalid ticket type.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+    def load_data(self):
+        try:
+            with open(self.data_file, "r") as f:
+                self.data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading tickets_data.json: {e}")
+            self.data = {
+                "panel_channel_id": 1292533788974387425,
+                "panel_message_id": None,
+                "log_channel_id": 1331018524218626100,
+                "tickets": {},
+                "panel_embed": {
+                    "title": "**LAPD | Support**",
+                    "description": "Welcome to the LAPD Support system! Please select the type of the ticket you want to open in the dropdown below. *Any abuse/troll ticket will result in timeout*",
+                    "color": 0x112255,
+                    "author": "LAPD Support",
+                    "author_icon": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512",
+                    "footer": "LAPD | Ticket System",
+                    "image": "https://cdn.discordapp.com/attachments/1323283795821985813/1423719750243975240/Variety_of_images_14.png?ex=68e155d7&is=68e00457&hm=7d1cc783a2a786cd3c9fa503911ac08581940943af43b1d24c22e53138062ce9",
+                    "thumbnail": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512"
+                },
+                "ticket_types": {
+                    "1": {
+                        "name": "General Support",
+                        "category_id": 1376216650000633957,
+                        "staff_role_id": 1324522426771443813,
+                        "embed": {
+                            "title": "General Ticket",
+                            "description": "Your general support ticket has been created. A team member will assist you shortly.\nPlease provide details about your issue.",
+                            "color": 0x112255,
+                            "author": "General Support Team",
+                            "author_icon": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512",
+                            "footer": "LAPD | Ticket System",
+                            "image": "https://cdn.discordapp.com/attachments/1323283795821985813/1423719750243975240/Variety_of_images_14.png?ex=68e155d7&is=68e00457&hm=7d1cc783a2a786cd3c9fa503911ac08581940943af43b1d24c22e53138062ce9",
+                            "thumbnail": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512"
+                        }
+                    },
+                    "2": {
+                        "name": "IA Support",
+                        "category_id": 1376216515191509082,
+                        "staff_role_id": 1306458776181800990,
+                        "embed": {
+                            "title": "Internals Affairs Ticket",
+                            "description": "Your IA Ticket has been created. Please send proofs of your report.",
+                            "color": 0x112255,
+                            "author": "Internals Affairs Team",
+                            "author_icon": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512",
+                            "footer": "LAPD | Ticket System",
+                            "image": "https://cdn.discordapp.com/attachments/1323283795821985813/1423719750243975240/Variety_of_images_14.png?ex=68e155d7&is=68e00457&hm=7d1cc783a2a786cd3c9fa503911ac08581940943af43b1d24c22e53138062ce9",
+                            "thumbnail": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512"
+                        }
+                    },
+                    "3": {
+                        "name": "BOT Support",
+                        "category_id": 1376217124238000269,
+                        "staff_role_id": 1337050305153470574,
+                        "embed": {
+                            "title": "BOT Ticket",
+                            "description": "Your BOT ticket has been created. Please provide details about your bot issues or suggestions.",
+                            "color": 0x112255,
+                            "author": "BOT Team",
+                            "author_icon": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512",
+                            "footer": "LAPD | Ticket System",
+                            "image": "https://cdn.discordapp.com/attachments/1323283795821985813/1423719750243975240/Variety_of_images_14.png?ex=68e155d7&is=68e00457&hm=7d1cc783a2a786cd3c9fa503911ac08581940943af43b1d24c22e53138062ce9",
+                            "thumbnail": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512"
+                        }
+                    },
+                    "4": {
+                        "name": "Board of Chiefs",
+                        "category_id": 1376216153256362044,
+                        "staff_role_id": 1361565373593292851,
+                        "embed": {
+                            "title": "Board of Chiefs Ticket",
+                            "description": "Your Board of Chiefs ticket has been created. Please provide details.",
+                            "color": 0x112255,
+                            "author": "Board of Chiefs Team",
+                            "author_icon": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512",
+                            "footer": "LAPD | Ticket System",
+                            "image": "https://cdn.discordapp.com/attachments/1323283795821985813/1423719750243975240/Variety_of_images_14.png?ex=68e155d7&is=68e00457&hm=7d1cc783a2a786cd3c9fa503911ac08581940943af43b1d24c22e53138062ce9",
+                            "thumbnail": "https://cdn.discordapp.com/icons/1292523481539543193/547df1f10a071619f4b98875a7e11aed.png?size=512"
+                        }
+                    }
+                }
+            }
+            self.save_data()
+
+    def save_data(self):
+        try:
+            with open(self.data_file, "w") as f:
+                json.dump(self.data, f, indent=4)
+        except Exception as e:
+            print(f"Error saving tickets_data.json: {e}")
+
+    def get_ticket_view(self):
+        view = View(timeout=None)
+        options = [
+            discord.SelectOption(label=val["name"], value=key)
+            for key, val in self.data["ticket_types"].items()
+        ]
+        select = Select(placeholder="Choose ticket type", options=options, custom_id="ticket_select")
+        select.callback = self.ticket_callback
+        view.add_item(select)
+        return view
+
+    async def ticket_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not isinstance(interaction.data, dict) or "values" not in interaction.data or not interaction.data["values"]:
+            await interaction.followup.send("Error: Invalid selection. Please try again.", ephemeral=True)
+            print(f"Error in ticket_callback: Invalid interaction.data for user {interaction.user.id}")
+            return
+        type_key = interaction.data["values"][0]
+        ticket_type = self.data["ticket_types"].get(type_key)
+        if not ticket_type:
+            await interaction.followup.send("Invalid ticket type selected.", ephemeral=True)
+            print(f"Error in ticket_callback: Invalid ticket type {type_key} for user {interaction.user.id}")
             return
 
-        prefix = CONFIG["ticket_prefixes"].get(ticket_type, ticket_type)
-        # Sanitize channel name to ensure it's valid (2-100 characters)
-        channel_name = f"🔴-{prefix}-{interaction.user.name.lower()}"[:100]
-        if len(channel_name) < 2:
-            channel_name = f"🔴-{prefix}-ticket"
+        category_id = ticket_type.get("category_id")
+        category = self.bot.get_channel(category_id)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            await interaction.followup.send("Category not configured properly.", ephemeral=True)
+            print(f"Error in ticket_callback: Invalid category ID {category_id} for ticket type {type_key}")
+            return
 
         guild = interaction.guild
         if not guild:
-            logger.error("Guild not found for interaction.")
-            embed = discord.Embed(
-                title="Error",
-                description="Guild not found.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-
-        # Check bot permissions
-        bot_member = guild.get_member(self.bot.user.id)
-        if not bot_member:
-            logger.error("Bot member not found in guild.")
-            embed = discord.Embed(
-                title="Error",
-                description="Bot not found in guild.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        if not bot_member.guild_permissions.manage_channels:
-            logger.error("Bot lacks manage_channels permission.")
-            embed = discord.Embed(
-                title="Error",
-                description="Bot lacks permission to create channels.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send("Guild not found.", ephemeral=True)
+            print(f"Error in ticket_callback: Guild not found for user {interaction.user.id}")
             return
 
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
         }
-
-        role_id = SUPPORT_ROLES.get(ticket_type)
-        role_mention = ""
-        if role_id:
-            role = guild.get_role(role_id)
-            if role:
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-                role_mention = role.mention
+        staff_role_id = ticket_type.get("staff_role_id")
+        staff_role = None
+        if staff_role_id:
+            staff_role = guild.get_role(staff_role_id)
+            if staff_role:
+                overwrites[staff_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
             else:
-                logger.warning(f"Role ID {role_id} for {ticket_type} not found.")
-
-        category_id = CONFIG["ticket_categories"].get(ticket_type)
-        category = None
-        if category_id:
-            category = guild.get_channel(category_id)
-            if not isinstance(category, discord.CategoryChannel):
-                logger.warning(f"Category ID {category_id} for {ticket_type} is not a valid category.")
-                category = None
-
-        if not category:
-            panel_channel = guild.get_channel(CONFIG["panel_channel_id"])
-            if panel_channel and panel_channel.category:
-                category = panel_channel.category
-            else:
-                logger.warning("No valid category found. Creating ticket without category.")
+                await interaction.followup.send("Staff role not found.", ephemeral=True)
+                print(f"Error in ticket_callback: Invalid staff role ID {staff_role_id} for ticket type {type_key}")
+                return
 
         try:
-            channel = await guild.create_text_channel(
-                name=channel_name,
-                category=category,
-                overwrites=overwrites
-            )
-        except discord.errors.Forbidden as e:
-            logger.error(f"Permission error creating ticket channel: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description="Bot lacks permission to create channel.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        except discord.errors.HTTPException as e:
-            logger.error(f"HTTP error creating ticket channel: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description=f"Error creating ticket channel: {str(e)}",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            channel_name = f"ticket-{interaction.user.name.lower()}-{ticket_type['name'].lower().replace(' ', '-')}"
+            channel = await category.create_text_channel(name=channel_name, overwrites=overwrites)
+        except discord.errors.Forbidden:
+            await interaction.followup.send("Bot lacks permission to create channels.", ephemeral=True)
+            print(f"Error in ticket_callback: Bot lacks permission to create channel for user {interaction.user.id}")
             return
         except Exception as e:
-            logger.error(f"Unexpected error creating ticket channel: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description="Failed to create ticket channel. Please try again.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(f"Error creating ticket channel: {e}", ephemeral=True)
+            print(f"Error in ticket_callback: Failed to create channel for user {interaction.user.id}: {e}")
             return
 
-        # Store ticket data
-        self.ticket_data[channel.id] = {
-            "owner": interaction.user,
-            "type": ticket_type,
-            "created_at": datetime.now().isoformat(),
-            "claimed_by": None,
-            "status": "open",
-            "reason": reason
-        }
+        self.data["tickets"][str(channel.id)] = {"type": type_key, "claimed_by": None}
+        self.save_data()
 
+        embed_data = ticket_type["embed"]
         embed = discord.Embed(
-            title=f"Los Angeles Police Department | {TICKET_TYPE_MAPPING[ticket_type]['display']}",
-            description="An officer will assist you soon. Please describe your issue. If you chose the wrong ticket type, use the Close button or `!close`.",
-            color=discord.Color.green(),
-            timestamp=datetime.now()
+            title=embed_data.get("title", ""),
+            description=embed_data.get("description", ""),
+            color=embed_data.get("color", discord.Color.blue())
         )
-        embed.add_field(name="Ticket Type", value=TICKET_TYPE_MAPPING[ticket_type]["display"], inline=True)
-        embed.add_field(name="Created By", value=interaction.user.mention, inline=True)
-        embed.add_field(name="Status", value="Open", inline=True)
-        embed.add_field(name="Reason", value=reason, inline=False)
+        if embed_data.get("author"):
+            embed.set_author(name=embed_data["author"], icon_url=embed_data.get("author_icon", ""))
+        if embed_data.get("footer"):
+            embed.set_footer(text=embed_data["footer"])
+        if embed_data.get("image"):
+            embed.set_image(url=embed_data["image"])
+        if embed_data.get("thumbnail"):
+            embed.set_thumbnail(url=embed_data["thumbnail"])
 
-        view = TicketActionView(self, self.ticket_data[channel.id])
-        content = f"{interaction.user.mention} {role_mention}".strip()
+        ping = f"{staff_role.mention} " if staff_role else ""
         try:
-            await channel.send(content=content, embed=embed, view=view)
-            embed = discord.Embed(
-                title="Ticket Created",
-                description=f"Ticket created: {channel.mention}",
-                color=discord.Color.green(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            await self.log_action("create", interaction.user, channel, f"Type: {TICKET_TYPE_MAPPING[ticket_type]['display']} | Reason: {reason}")
+            await channel.send(f"{interaction.user.mention} {ping}Welcome to your ticket!", embed=embed)
+            await interaction.followup.send(f"Ticket created: {channel.mention}", ephemeral=True)
+        except discord.errors.Forbidden:
+            await interaction.followup.send("Bot lacks permission to send messages in the ticket channel.", ephemeral=True)
+            print(f"Error in ticket_callback: Bot lacks permission to send message in channel {channel.id}")
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print(f"TicketCog loaded for {self.bot.user.name}")
+        invalid_tickets = []
+        for channel_id in self.data["tickets"]:
+            channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                invalid_tickets.append(channel_id)
+        for channel_id in invalid_tickets:
+            self.data["tickets"].pop(channel_id, None)
+        self.save_data()
+
+        panel_channel_id = self.data.get("panel_channel_id")
+        if not panel_channel_id:
+            print("WARNING: Panel channel ID not configured in tickets_data.json. Ticket panel not sent.")
+            return
+        channel = self.bot.get_channel(panel_channel_id)
+        if not channel:
+            print(f"ERROR: Panel channel {panel_channel_id} not found. Ticket panel not sent.")
+            return
+        view = self.get_ticket_view()
+        embed_data = self.data["panel_embed"]
+        embed = discord.Embed(
+            title=embed_data.get("title", "Support Panel"),
+            description=embed_data.get("description", "Select the type of ticket you want to create from the dropdown below."),
+            color=embed_data.get("color", discord.Color.green())
+        )
+        if embed_data.get("author"):
+            embed.set_author(name=embed_data["author"], icon_url=embed_data.get("author_icon", ""))
+        if embed_data.get("footer"):
+            embed.set_footer(text=embed_data["footer"])
+        if embed_data.get("image"):
+            embed.set_image(url=embed_data["image"])
+        if embed_data.get("thumbnail"):
+            embed.set_thumbnail(url=embed_data["thumbnail"])
+
+        panel_message_id = self.data.get("panel_message_id")
+        try:
+            if panel_message_id:
+                try:
+                    msg = await channel.fetch_message(panel_message_id)
+                    await msg.edit(embed=embed, view=view)
+                    print(f"Ticket panel updated in channel {channel.name} (ID: {channel.id})")
+                except discord.errors.NotFound:
+                    msg = await channel.send(embed=embed, view=view)
+                    self.data["panel_message_id"] = msg.id
+                    self.save_data()
+                    print(f"Ticket panel sent to channel {channel.name} (ID: {channel.id}) - new message created")
+            else:
+                msg = await channel.send(embed=embed, view=view)
+                self.data["panel_message_id"] = msg.id
+                self.save_data()
+                print(f"Ticket panel sent to channel {channel.name} (ID: {channel.id})")
+        except discord.errors.Forbidden:
+            print(f"ERROR: Bot lacks permission to send/edit messages in panel channel {channel.name} (ID: {channel.id})")
         except Exception as e:
-            logger.error(f"Error sending ticket creation message: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Partial Success",
-                description="Ticket created, but failed to send initial message.",
-                color=discord.Color.yellow(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            print(f"ERROR: Failed to send ticket panel to channel {channel.name} (ID: {channel.id}): {e}")
 
-    async def send_transcript(self, channel):
+    async def check_staff_role(self, ctx):
+        ticket_data = self.data["tickets"].get(str(ctx.channel.id))
+        if not ticket_data:
+            return False
+        type_key = ticket_data.get("type")
+        if not type_key or type_key not in self.data["ticket_types"]:
+            return False
+        staff_role_id = self.data["ticket_types"][type_key].get("staff_role_id")
+        if not staff_role_id:
+            return False
+        guild = ctx.guild
+        if not guild:
+            return False
+        staff_role = guild.get_role(staff_role_id)
+        if not staff_role:
+            return False
+        return staff_role in ctx.author.roles
+
+    @commands.command(name="claim")
+    async def claim(self, ctx):
+        if not await self.check_staff_role(ctx):
+            await ctx.send("You don't have permission to use this command.")
+            return
+        ticket_data = self.data["tickets"].get(str(ctx.channel.id))
+        if not ticket_data:
+            await ctx.send("This is not a recognized ticket channel.")
+            return
         try:
-            transcript = []
+            ticket_data["claimed_by"] = ctx.author.id
+            self.data["tickets"][str(ctx.channel.id)] = ticket_data
+            self.save_data()
+            await ctx.send(f"Ticket claimed by {ctx.author.mention}.")
+        except Exception as e:
+            await ctx.send(f"Error claiming ticket: {e}")
+            print(f"Error in claim: Failed for ticket {ctx.channel.id}: {e}")
+
+    @commands.command(name="assignclaimed")
+    async def assignclaimed(self, ctx, member: discord.Member = None):
+        if not await self.check_staff_role(ctx):
+            await ctx.send("You don't have permission to use this command.")
+            return
+        ticket_data = self.data["tickets"].get(str(ctx.channel.id))
+        if not ticket_data:
+            await ctx.send("This is not a recognized ticket channel.")
+            return
+        try:
+            if member is None:
+                member = ctx.author
+            if not isinstance(member, discord.Member):
+                await ctx.send("Invalid member provided.")
+                print(f"Error in assignclaimed: Invalid member for ticket {ctx.channel.id}")
+                return
+            ticket_data["claimed_by"] = member.id
+            self.data["tickets"][str(ctx.channel.id)] = ticket_data
+            self.save_data()
+            await ctx.send(f"Ticket claimed by {member.mention}.")
+        except Exception as e:
+            await ctx.send(f"Error assigning ticket: {e}")
+            print(f"Error in assignclaimed: Failed for ticket {ctx.channel.id}: {e}")
+
+    @commands.command(name="changeclaimed")
+    async def changeclaimed(self, ctx, member: discord.Member):
+        if not await self.check_staff_role(ctx):
+            await ctx.send("You don't have permission to use this command.")
+            return
+        ticket_data = self.data["tickets"].get(str(ctx.channel.id))
+        if not ticket_data:
+            await ctx.send("This is not a recognized ticket channel.")
+            return
+        try:
+            ticket_data["claimed_by"] = member.id
+            self.data["tickets"][str(ctx.channel.id)] = ticket_data
+            self.save_data()
+            await ctx.send(f"Ticket claim transferred to {member.mention}.")
+        except Exception as e:
+            await ctx.send(f"Error transferring ticket claim: {e}")
+            print(f"Error in changeclaimed: Failed for ticket {ctx.channel.id}: {e}")
+
+    @commands.command(name="add")
+    async def add_user(self, ctx, member: discord.Member):
+        if not await self.check_staff_role(ctx):
+            await ctx.send("You don't have permission to use this command.")
+            return
+        try:
+            await ctx.channel.set_permissions(member, view_channel=True, send_messages=True, read_message_history=True)
+            await ctx.send(f"Added {member.mention} to the ticket.")
+        except discord.errors.Forbidden:
+            await ctx.send("Bot lacks permission to manage channel permissions.")
+            print(f"Error in add_user: Bot lacks permission to manage permissions in ticket {ctx.channel.id}")
+
+    @commands.command(name="remove")
+    async def remove_user(self, ctx, member: discord.Member):
+        if not await self.check_staff_role(ctx):
+            await ctx.send("You don't have permission to use this command.")
+            return
+        try:
+            await ctx.channel.set_permissions(member, overwrite=None)
+            await ctx.send(f"Removed {member.mention} from the ticket.")
+        except discord.errors.Forbidden:
+            await ctx.send("Bot lacks permission to manage channel permissions.")
+            print(f"Error in remove_user: Bot lacks permission to manage permissions in ticket {ctx.channel.id}")
+
+    @commands.command(name="close")
+    async def close(self, ctx):
+        ticket_data = self.data["tickets"].get(str(ctx.channel.id))
+        if not ticket_data:
+            await ctx.send("This is not a recognized ticket channel.")
+            return
+        if not await self.check_staff_role(ctx):
+            await ctx.send("You don't have permission to close this ticket.")
+            return
+        try:
+            await ctx.send("Closing ticket...")
+            transcript = await self.generate_transcript(ctx.channel, ticket_data)
+            transcript.seek(0)  # Reset file pointer
+            log_channel_id = self.data.get("log_channel_id")
+            if log_channel_id:
+                log_channel = self.bot.get_channel(log_channel_id)
+                if not log_channel:
+                    await ctx.send(f"Warning: Log channel {log_channel_id} not found. Transcript not sent.")
+                    print(f"Error in close: Log channel {log_channel_id} not found for ticket {ctx.channel.id}")
+                else:
+                    try:
+                        file = discord.File(transcript, filename=f"transcript-{ctx.channel.name}.txt")
+                        await log_channel.send(
+                            f"Transcript for {ctx.channel.name} (ID: {ctx.channel.id}):",
+                            file=file
+                        )
+                    except discord.errors.Forbidden:
+                        await ctx.send("Bot lacks permission to send transcript to log channel.")
+                        print(f"Error in close: Bot lacks permission to send transcript to log channel {log_channel_id}")
+                    except Exception as e:
+                        await ctx.send(f"Error sending transcript: {e}")
+                        print(f"Error in close: Failed to send transcript to log channel {log_channel_id}: {e}")
+            self.data["tickets"].pop(str(ctx.channel.id), None)
+            self.save_data()
+            await ctx.channel.delete()
+        except discord.errors.Forbidden:
+            await ctx.send("Bot lacks permission to delete channel.")
+            print(f"Error in close: Bot lacks permission to delete channel {ctx.channel.id}")
+        except discord.errors.NotFound:
+            await ctx.send("Channel already deleted.")
+            print(f"Error in close: Channel {ctx.channel.id} not found for deletion")
+            self.data["tickets"].pop(str(ctx.channel.id), None)
+            self.save_data()
+        except Exception as e:
+            await ctx.send(f"Error closing ticket: {e}")
+            print(f"Error in close: Failed to close ticket {ctx.channel.id}: {e}")
+
+    async def generate_transcript(self, channel, ticket_data):
+        content = f"Transcript for {channel.name} (ID: {channel.id})\n"
+        content += f"Ticket Type: {self.data['ticket_types'].get(ticket_data['type'], {'name': 'Unknown'})['name']}\n"
+        claimed_by_id = ticket_data.get("claimed_by")
+        if claimed_by_id:
+            claimed_user = self.bot.get_user(claimed_by_id)
+            content += f"Claimed By: {claimed_user.display_name if claimed_user else 'Unknown'} (ID: {claimed_by_id})\n"
+        else:
+            content += "Claimed By: None\n"
+        content += "\n"
+        try:
             async for message in channel.history(limit=None, oldest_first=True):
-                timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                content = message.content or "[No content]"
-                transcript.append(f"[{timestamp}] {message.author.display_name}: {content}")
-
-            transcript_text = "\n".join(transcript)
-            file = discord.File(io.StringIO(transcript_text), filename=f"transcript-{channel.name}.txt")
-            log_channel = self.bot.get_channel(CONFIG["transcript_channel_id"])
-
-            if log_channel:
-                embed = discord.Embed(
-                    title=f"Transcript for {channel.name}",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.now()
-                )
-                ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
-                embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-                await log_channel.send(embed=embed, file=file)
-            else:
-                logger.error("Transcript channel not found")
-        except Exception as e:
-            logger.error(f"Error sending transcript: {str(e)}\n{traceback.format_exc()}")
-
-    async def close_ticket(self, interaction: discord.Interaction, reason: str):
-        channel = interaction.channel
-        ticket_data = self.ticket_data.get(channel.id, {})
-        if not ticket_data:
-            embed = discord.Embed(
-                title="Error",
-                description="This channel is not a registered ticket.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        owner = ticket_data.get("owner")
-        claimer = ticket_data.get("claimed_by")
-        ticket_type = ticket_data.get("type", "unknown")
-
-        prefix = CONFIG["ticket_prefixes"].get(ticket_type, ticket_type)
-        try:
-            await channel.edit(name=f"🔒-{prefix}-{owner.name.lower()}"[:100])
-        except Exception as e:
-            logger.error(f"Error updating channel name on close: {str(e)}\n{traceback.format_exc()}")
-
-        new_overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-        }
-        if claimer:
-            new_overwrites[claimer] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
-        try:
-            await channel.edit(overwrites=new_overwrites)
-        except Exception as e:
-            logger.error(f"Error updating permissions on close: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description="Error updating permissions.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-
-        self.ticket_data[channel.id]["status"] = "closed"
-
-        embed = discord.Embed(
-            title="Ticket Closed",
-            description=f"This ticket is closed. Reason: {reason}\nChoose an action below:",
-            color=discord.Color.orange(),
-            timestamp=datetime.now()
-        )
-        embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-        view = CloseActionView(self, ticket_data)
-        await interaction.response.send_message(embed=embed, view=view)
-        await self.log_action("close", interaction.user, channel, f"Reason: {reason} | Claimer retained: {claimer.mention if claimer else 'None'}")
-
-    async def log_action(self, action: str, user: discord.Member, channel: discord.TextChannel, extra: str = ""):
-        log_channel = self.bot.get_channel(CONFIG["log_channel_id"])
-        if log_channel:
-            embed = discord.Embed(
-                title=f"Ticket {action.capitalize()}",
-                description=f"Action: {action}\nChannel: {channel.name}\nUser: {user.mention}\n{extra}",
-                color=discord.Color.blue(),
-                timestamp=datetime.now()
-            )
-            ticket_type = self.ticket_data.get(channel.id, {}).get("type", "Unknown")
-            embed.add_field(name="Type", value=TICKET_TYPE_MAPPING.get(ticket_type, {}).get("display", "Unknown"), inline=True)
-            try:
-                await log_channel.send(embed=embed)
-            except Exception as e:
-                logger.error(f"Error sending log message: {str(e)}\n{traceback.format_exc()}")
-
-    @commands.command()
-    async def ticketpanel(self, ctx: commands.Context):
-        try:
-            embed = discord.Embed(
-                title="Los Angeles Police Department Support",
-                description="""
-**General Ticket:** ❓
--> General questions and issues
-
-**Internal Affairs Ticket:** 🚔
--> Report LAPD Officers
-
-**Board of Chiefs Ticket:** 👑
--> Highly important issues that require BOC
-/!\ Do not open a BOC ticket for a minor issue /!\
-
-**Bot Development Ticket:** 🤖
--> Report a bot bug or an issue with the bot
-""",
-                color=discord.Color.blue(),
-                timestamp=datetime.now()
-            )
-            view = SupportDropdownView(self)
-            panel_channel = self.bot.get_channel(CONFIG["panel_channel_id"])
-            if panel_channel:
-                await panel_channel.send(embed=embed, view=view)
-                embed = discord.Embed(
-                    title="Success",
-                    description=f"Panel sent to {panel_channel.mention}",
-                    color=discord.Color.green(),
-                    timestamp=datetime.now()
-                )
-                await ctx.send(embed=embed, delete_after=5)
-            else:
-                logger.error("Panel channel not found")
-                embed = discord.Embed(
-                    title="Error",
-                    description="Panel channel not found.",
-                    color=discord.Color.red(),
-                    timestamp=datetime.now()
-                )
-                await ctx.send(embed=embed, delete_after=5)
-        except Exception as e:
-            logger.error(f"Error sending panel: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description="Error creating panel.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed, delete_after=5)
-
-    @commands.command()
-    async def close(self, ctx: commands.Context):
-        ticket_data = self.ticket_data.get(ctx.channel.id, {})
-        if not ticket_data:
-            embed = discord.Embed(
-                title="Error",
-                description="This channel is not a registered ticket.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            return
-        embed = discord.Embed(
-            title="Close Request",
-            description="Confirm ticket closure by providing a reason:",
-            color=discord.Color.orange(),
-            timestamp=datetime.now()
-        )
-        view = CloseRequestView(self)
-        await ctx.send(embed=embed, view=view)
-
-    @commands.command()
-    async def add(self, ctx: commands.Context, member: discord.Member):
-        ticket_data = self.ticket_data.get(ctx.channel.id, {})
-        if not ticket_data:
-            embed = discord.Embed(
-                title="Error",
-                description="This channel is not a registered ticket.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            return
-        if ticket_data["status"] == "closed":
-            embed = discord.Embed(
-                title="Error",
-                description="This ticket is closed and cannot have members added.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            return
-        try:
-            await ctx.channel.set_permissions(member, read_messages=True, send_messages=True)
-            embed = discord.Embed(
-                title="Member Added",
-                description=f"Added {member.mention} to the ticket.",
-                color=discord.Color.green(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            await self.log_action("add", ctx.author, ctx.channel, f"Added {member.mention}")
+                content += f"[{message.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {message.author.display_name} (ID: {message.author.id}): {message.content}\n"
+                for attachment in message.attachments:
+                    content += f"Attachment: {attachment.url}\n"
         except discord.errors.Forbidden:
-            logger.error(f"Bot lacks permission to add {member} to channel {ctx.channel.name}")
-            embed = discord.Embed(
-                title="Error",
-                description="Bot lacks permission to add members to this channel.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
+            content += "Error: Bot lacks permission to read message history.\n"
+            print(f"Error in generate_transcript: Bot lacks permission to read message history in channel {channel.id}")
         except Exception as e:
-            logger.error(f"Error adding member {member} to channel {ctx.channel.name}: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description=f"Error adding member: {str(e)}",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-
-    @commands.command()
-    async def remove(self, ctx: commands.Context, member: discord.Member):
-        ticket_data = self.ticket_data.get(ctx.channel.id, {})
-        if not ticket_data:
-            embed = discord.Embed(
-                title="Error",
-                description="This channel is not a registered ticket.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            return
-        if ticket_data["status"] == "closed":
-            embed = discord.Embed(
-                title="Error",
-                description="This ticket is closed and cannot have members removed.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            return
-        if member == ticket_data.get("owner"):
-            embed = discord.Embed(
-                title="Error",
-                description="You cannot remove the ticket owner.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            return
-        if member == ticket_data.get("claimed_by"):
-            embed = discord.Embed(
-                title="Error",
-                description="You cannot remove the ticket claimer.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            return
-        try:
-            await ctx.channel.set_permissions(member, read_messages=False, send_messages=False)
-            embed = discord.Embed(
-                title="Member Removed",
-                description=f"Removed {member.mention} from the ticket.",
-                color=discord.Color.green(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-            await self.log_action("remove", ctx.author, ctx.channel, f"Removed {member.mention}")
-        except discord.errors.Forbidden:
-            logger.error(f"Bot lacks permission to remove {member} from channel {ctx.channel.name}")
-            embed = discord.Embed(
-                title="Error",
-                description="Bot lacks permission to remove members from this channel.",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
-        except Exception as e:
-            logger.error(f"Error removing member {member} from channel {ctx.channel.name}: {str(e)}\n{traceback.format_exc()}")
-            embed = discord.Embed(
-                title="Error",
-                description=f"Error removing member: {str(e)}",
-                color=discord.Color.red(),
-                timestamp=datetime.now()
-            )
-            await ctx.send(embed=embed)
+            content += f"Error generating transcript: {e}\n"
+            print(f"Error in generate_transcript: Failed for channel {channel.id}: {e}")
+        return StringIO(content)
 
 async def setup(bot):
-    await bot.add_cog(Support(bot))
+
+    await bot.add_cog(Tickets(bot))
