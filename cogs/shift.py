@@ -1,511 +1,719 @@
 import discord
-from discord import app_commands
 from discord.ext import commands
-import datetime
+from discord import app_commands
+import json
+import os
+from datetime import datetime, timezone
+import asyncio
+import logging
+
+# Set up logging for debugging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class TimeInputModal(discord.ui.Modal):
+    def __init__(self, title, user_id, action, cog):
+        super().__init__(title=title)
+        self.user_id = user_id
+        self.action = action
+        self.cog = cog
+        self.add_item(discord.ui.TextInput(
+            label="Time (in minutes)",
+            placeholder="Enter time in minutes",
+            required=True,
+            style=discord.TextStyle.short
+        ))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            minutes = int(self.children[0].value)
+            if minutes <= 0:
+                raise ValueError("Time must be positive.")
+            data = self.cog.load_shifts()
+            user_data = data["users"].setdefault(str(self.user_id), {"active": False, "total_duration": 0, "history": []})
+            
+            if self.action == "add":
+                user_data["total_duration"] += minutes
+                user_data["history"].append({
+                    "start": datetime.now(timezone.utc).isoformat(),
+                    "end": None,
+                    "duration": minutes,
+                    "note": "Added via admin"
+                })
+                action_text = f"Added {minutes} minutes to"
+            else:  # remove
+                user_data["total_duration"] = max(0, user_data["total_duration"] - minutes)
+                user_data["history"].append({
+                    "start": datetime.now(timezone.utc).isoformat(),
+                    "end": None,
+                    "duration": -minutes,
+                    "note": "Removed via admin"
+                })
+                action_text = f"Removed {minutes} minutes from"
+            
+            self.cog.save_shifts(data)
+            embed = discord.Embed(
+                title="Shift Updated",
+                description=f"{action_text} <@{self.user_id}>'s shift duration.",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except ValueError as e:
+            embed = discord.Embed(
+                title="Error",
+                description=str(e),
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in TimeInputModal: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+class AdminButtons(discord.ui.View):
+    def __init__(self, user_id, cog):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.cog = cog
+
+    @discord.ui.button(label="Start Shift", style=discord.ButtonStyle.green)
+    async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not await self.cog.has_shift_admin(interaction.user):
+            embed = discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Admin role to use this.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        try:
+            data = self.cog.load_shifts()
+            user_data = data["users"].setdefault(str(self.user_id), {"active": False, "total_duration": 0, "history": []})
+            if user_data["active"]:
+                embed = discord.Embed(
+                    title="Shift Already Active",
+                    description=f"<@{self.user_id}> is already on shift.",
+                    color=discord.Color.red()
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            user_data["active"] = True
+            user_data["start_time"] = datetime.now(timezone.utc).isoformat()
+            self.cog.save_shifts(data)
+            embed = discord.Embed(
+                title="Shift Started",
+                description=f"Started shift for <@{self.user_id}>.",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in start_button: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Stop Shift", style=discord.ButtonStyle.red)
+    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not await self.cog.has_shift_admin(interaction.user):
+            embed = discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Admin role to use this.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        try:
+            data = self.cog.load_shifts()
+            user_data = data["users"].setdefault(str(self.user_id), {"active": False, "total_duration": 0, "history": []})
+            if not user_data["active"]:
+                embed = discord.Embed(
+                    title="No Active Shift",
+                    description=f"<@{self.user_id}> is not on shift.",
+                    color=discord.Color.red()
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            start_time = datetime.fromisoformat(user_data["start_time"])
+            duration = int((datetime.now(timezone.utc) - start_time).total_seconds() // 60)
+            user_data["total_duration"] += duration
+            user_data["active"] = False
+            user_data["history"].append({
+                "start": user_data["start_time"],
+                "end": datetime.now(timezone.utc).isoformat(),
+                "duration": duration
+            })
+            del user_data["start_time"]
+            self.cog.save_shifts(data)
+            embed = discord.Embed(
+                title="Shift Stopped",
+                description=f"Stopped shift for <@{self.user_id}>. Duration: {duration} minutes.",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in stop_button: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Add Time", style=discord.ButtonStyle.blurple)
+    async def add_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.cog.has_shift_admin(interaction.user):
+            await interaction.response.send_message(embed=discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Admin role to use this.",
+                color=discord.Color.red()
+            ), ephemeral=True)
+            return
+        await interaction.response.send_modal(TimeInputModal("Add Shift Time", self.user_id, "add", self.cog))
+
+    @discord.ui.button(label="Remove Time", style=discord.ButtonStyle.grey)
+    async def remove_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.cog.has_shift_admin(interaction.user):
+            await interaction.response.send_message(embed=discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Admin role to use this.",
+                color=discord.Color.red()
+            ), ephemeral=True)
+            return
+        await interaction.response.send_modal(TimeInputModal("Remove Shift Time", self.user_id, "remove", self.cog))
+
+    @discord.ui.button(label="Show Shifts", style=discord.ButtonStyle.secondary)
+    async def show_shifts_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not await self.cog.has_shift_admin(interaction.user):
+            embed = discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Admin role to use this.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        try:
+            data = self.cog.load_shifts()
+            user_data = data["users"].get(str(self.user_id), {"active": False, "total_duration": 0, "history": []})
+            history = user_data["history"]
+            history_text = []
+            for i, entry in enumerate(history[:10], 1):  # Limit to last 10 shifts
+                start = datetime.fromisoformat(entry["start"]).strftime('%Y-%m-%d %H:%M:%S UTC')
+                end = datetime.fromisoformat(entry["end"]).strftime('%Y-%m-%d %H:%M:%S UTC') if entry["end"] else "N/A"
+                duration = entry["duration"]
+                note = entry.get("note", "")
+                history_text.append(f"{i}. Start: {start}, End: {end}, Duration: {duration} mins{note and f' ({note})' or ''}")
+            embed = discord.Embed(
+                title=f"Shift History for <@{self.user_id}>",
+                description="\n".join(history_text) or "No shift history.",
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="Total Duration", value=f"{user_data['total_duration']} minutes")
+            embed.add_field(name="Active", value="Yes" if user_data["active"] else "No")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in show_shifts_button: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+class ActiveButtons(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.blurple)
+    async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        if not await self.cog.has_shift_basic(interaction.user):
+            embed = discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Basic or Shift Admin role to use this.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed)
+            return
+        try:
+            data = self.cog.load_shifts()
+            active_users = [
+                f"<@{user_id}> (Started: {datetime.fromisoformat(user_data['start_time']).strftime('%Y-%m-%d %H:%M:%S UTC')})"
+                for user_id, user_data in data["users"].items() if user_data["active"]
+            ]
+            embed = discord.Embed(
+                title="Active Shifts",
+                description="\n".join(active_users) if active_users else "No active shifts.",
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, view=self)
+        except Exception as e:
+            logger.error(f"Error in refresh_button: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed)
+
+class LeaderboardButtons(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.blurple)
+    async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        if not await self.cog.has_shift_basic(interaction.user):
+            embed = discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Basic or Shift Admin role to use this.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed)
+            return
+        try:
+            data = self.cog.load_shifts()
+            guild = interaction.guild
+            shift_users = []
+            for member in guild.members:
+                if await self.cog.has_shift_basic(member):
+                    user_id = str(member.id)
+                    total_duration = data["users"].get(user_id, {"total_duration": 0})["total_duration"]
+                    shift_users.append((member, total_duration))
+            
+            shift_users.sort(key=lambda x: x[1], reverse=True)
+            leaderboard = [
+                f"{i+1}. {member.mention}: {duration} minutes"
+                for i, (member, duration) in enumerate(shift_users[:100])  # Limit to top 100
+            ]
+            embed = discord.Embed(
+                title="Shift Leaderboard",
+                description="\n".join(leaderboard) if leaderboard else "No users with shift permissions.",
+                color=discord.Color.gold(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, view=self)
+        except Exception as e:
+            logger.error(f"Error in refresh_button: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed)
+
+class EraseButtons(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=60)  # Timeout after 60 seconds
+        self.cog = cog
+
+    @discord.ui.button(label="Confirm Erase", style=discord.ButtonStyle.red)
+    async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not await self.cog.has_shift_admin(interaction.user):
+            embed = discord.Embed(
+                title="Permission Denied",
+                description="You need the Shift Admin role to use this.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        try:
+            data = {"users": {}}
+            self.cog.save_shifts(data)
+            embed = discord.Embed(
+                title="All Shift Data Erased",
+                description="All shift data for all users has been erased.",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            self.stop()  # Disable buttons after confirmation
+        except Exception as e:
+            logger.error(f"Error in confirm_button: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.grey)
+    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        embed = discord.Embed(
+            title="Erase Cancelled",
+            description="Shift data erasure cancelled.",
+            color=discord.Color.blue(),
+            timestamp=datetime.now(timezone.utc)
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        self.stop()  # Disable buttons after cancellation
+
+class ShiftButtons(discord.ui.View):
+    def __init__(self, user_id, cog):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.cog = cog
+
+    @discord.ui.button(label="Start Shift", style=discord.ButtonStyle.green)
+    async def start_shift(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if interaction.user.id != self.user_id:
+            embed = discord.Embed(
+                title="Error",
+                description="Only the command issuer can use these buttons.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        try:
+            data = self.cog.load_shifts()
+            user_data = data["users"].setdefault(str(self.user_id), {"active": False, "total_duration": 0, "history": []})
+            if user_data["active"]:
+                embed = discord.Embed(
+                    title="Shift Already Active",
+                    description="You are already on shift.",
+                    color=discord.Color.red()
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            user_data["active"] = True
+            user_data["start_time"] = datetime.now(timezone.utc).isoformat()
+            self.cog.save_shifts(data)
+            embed = discord.Embed(
+                title="Shift Started",
+                description="Your shift has started.",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in start_shift: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="End Shift", style=discord.ButtonStyle.red)
+    async def end_shift(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if interaction.user.id != self.user_id:
+            embed = discord.Embed(
+                title="Error",
+                description="Only the command issuer can use these buttons.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        try:
+            data = self.cog.load_shifts()
+            user_data = data["users"].setdefault(str(self.user_id), {"active": False, "total_duration": 0, "history": []})
+            if not user_data["active"]:
+                embed = discord.Embed(
+                    title="No Active Shift",
+                    description="You are not currently on shift.",
+                    color=discord.Color.red()
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            start_time = datetime.fromisoformat(user_data["start_time"])
+            duration = int((datetime.now(timezone.utc) - start_time).total_seconds() // 60)
+            user_data["total_duration"] += duration
+            user_data["active"] = False
+            user_data["history"].append({
+                "start": user_data["start_time"],
+                "end": datetime.now(timezone.utc).isoformat(),
+                "duration": duration
+            })
+            del user_data["start_time"]
+            self.cog.save_shifts(data)
+            embed = discord.Embed(
+                title="Shift Ended",
+                description=f"Your shift has ended. Duration: {duration} minutes.",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in end_shift: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 class Shift(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.LAPD_PERSONNEL_ROLE = 1292541838904791040
-        self.LAPD_SENIOR_ROLE = 1383535858698948799
-        self.SHIFT_LOG_CHANNEL_ID = 1292544821688537158
-        self.data = {}  # In-memory data storage
+        self.shift_file = "shifts.json"
+        self.shift_basic_role_id = 1292541838904791040  # Shift Basic role ID
+        self.shift_admin_role_id = 1383535858698948799  # Shift Admin role ID
+        self.load_shifts()
+        logger.info("Shift cog initialized")
 
-    def now_ts(self):
-        return int(datetime.datetime.now().timestamp())
+    def load_shifts(self):
+        """Load shift data from shifts.json or initialize an empty structure."""
+        try:
+            if not os.path.exists(self.shift_file):
+                logger.info("Creating new shifts.json")
+                with open(self.shift_file, 'w') as f:
+                    json.dump({"users": {}}, f)
+                return {"users": {}}
+            with open(self.shift_file, 'r') as f:
+                data = json.load(f)
+                if not isinstance(data, dict) or "users" not in data:
+                    logger.warning("Invalid or missing 'users' key in shifts.json, resetting")
+                    data = {"users": {}}
+                    with open(self.shift_file, 'w') as f:
+                        json.dump(data, f, indent=4)
+                return data
+        except json.JSONDecodeError:
+            logger.error("Corrupted shifts.json, resetting to default")
+            data = {"users": {}}
+            with open(self.shift_file, 'w') as f:
+                json.dump(data, f, indent=4)
+            return data
+        except Exception as e:
+            logger.error(f"Error loading shifts.json: {e}")
+            return {"users": {}}
 
-    def humanize(self, seconds):
-        m, s = divmod(int(seconds), 60)
-        h, m = divmod(m, 60)
-        return f"{h}h {m}m {s}s"
+    def save_shifts(self, data):
+        """Save shift data to shifts.json."""
+        try:
+            with open(self.shift_file, 'w') as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            logger.error(f"Error saving shifts.json: {e}")
 
-    def get_or_create_user(self, user_id):
-        uid = str(user_id)
-        if uid not in self.data:
-            self.data[uid] = {"total": 0, "onduty": False, "start": 0, "onbreak": False, "breakstart": 0}
-        return self.data[uid]
+    async def has_shift_basic(self, member: discord.Member):
+        """Check if a member has the Shift Basic or Shift Admin role."""
+        has_role = any(role.id in [self.shift_basic_role_id, self.shift_admin_role_id] for role in member.roles)
+        logger.info(f"Checking shift_basic for {member.id}: {has_role}")
+        return has_role
 
-    async def get_or_create_status_roles(self, guild):
-        on_duty_name = "Currently On-Duty"
-        on_break_name = "Currently On-Break"
-        on_duty_role = discord.utils.get(guild.roles, name=on_duty_name)
-        on_break_role = discord.utils.get(guild.roles, name=on_break_name)
-        if not on_duty_role:
-            on_duty_role = await guild.create_role(
-                name=on_duty_name, color=discord.Color.green(), reason="Shift system status role"
-            )
-        if not on_break_role:
-            on_break_role = await guild.create_role(
-                name=on_break_name, color=discord.Color.blue(), reason="Shift system status role"
-            )
-        return on_duty_role, on_break_role
+    async def has_shift_admin(self, member: discord.Member):
+        """Check if a member has the Shift Admin role."""
+        has_role = any(role.id == self.shift_admin_role_id for role in member.roles)
+        logger.info(f"Checking shift_admin for {member.id}: {has_role}")
+        return has_role
 
-    async def give_role(self, member, role):
-        if role and role not in member.roles:
-            await member.add_roles(role, reason="Shift Bot")
-
-    async def remove_role(self, member, role):
-        if role and role in member.roles:
-            await member.remove_roles(role, reason="Shift Bot")
-
-    async def log_shift_event(self, user, event):
-        channel = self.bot.get_channel(self.SHIFT_LOG_CHANNEL_ID)
-        if channel:
+    @commands.hybrid_group(name="duty", invoke_without_command=True)
+    async def duty(self, ctx: commands.Context):
+        await ctx.defer()
+        try:
             embed = discord.Embed(
-                title="Shift Log",
-                description=f"**{user.mention}** {event}",
-                color=discord.Color.teal(),
-                timestamp=datetime.datetime.utcnow()
+                title="Duty Command",
+                description="Use subcommands: `manage`, `active`, `admin`, `leaderboard`, `erase`.",
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
             )
-            await channel.send(embed=embed)
-
-    # -------- Shift Management Panel --------
-    class ShiftManageView(discord.ui.View):
-        def __init__(self, user, bot):
-            super().__init__(timeout=120)
-            self.user = user
-            self.bot = bot
-            udata = self.bot.cogs['Shift'].get_or_create_user(self.user.id)
-            self.clear_items()
-            if not udata["onduty"]:
-                self.add_item(self.StartDuty())
-            elif udata["onbreak"]:
-                self.add_item(self.EndBreak())
-                self.add_item(self.EndDuty())
-            else:
-                self.add_item(self.GoBreak())
-                self.add_item(self.EndDuty())
-
-        async def interaction_check(self, interaction):
-            if interaction.user != self.user:
-                await interaction.response.send_message(
-                    "You can't control someone else's shift panel!", ephemeral=True
-                )
-                return False
-            return True
-
-        async def update_panel(self, interaction):
-            view = self.__class__(self.user, self.bot)
-            udata = self.bot.cogs['Shift'].get_or_create_user(self.user.id)
-            total = udata["total"]
-            live = self.bot.cogs['Shift'].now_ts() - udata["start"] if udata["onduty"] and not udata["onbreak"] else 0
-            breaklive = self.bot.cogs['Shift'].now_ts() - udata["breakstart"] if udata["onbreak"] else 0
-            status = "On Duty" if udata["onduty"] else "Off Duty"
-            breakstatus = "On Break" if udata["onbreak"] else ("Active" if udata["onduty"] else "N/A")
+            await ctx.send(embed=embed)
+        except Exception as e:
+            logger.error(f"Error in duty: {e}")
             embed = discord.Embed(
-                title=f"{self.user.display_name}'s Duty Panel",
-                color=discord.Color.dark_blue()
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
             )
-            if udata["onduty"] and not udata["onbreak"]:
-                embed.add_field(name="Total Duty Time", value=f"`{self.bot.cogs['Shift'].humanize(total + live)}`", inline=False)
-            elif udata["onbreak"]:
-                embed.add_field(name="Total Duty Time", value=f"`{self.bot.cogs['Shift'].humanize(total)}`", inline=False)
-                embed.add_field(name="Break Time", value=f"`{self.bot.cogs['Shift'].humanize(breaklive)}`", inline=False)
-            else:
-                embed.add_field(name="Total Duty Time", value=f"`{self.bot.cogs['Shift'].humanize(total)}`", inline=False)
-            embed.add_field(name="Status", value=status, inline=True)
-            embed.add_field(name="Break Status", value=breakstatus, inline=True)
-            embed.set_footer(text="Shift System")
-            try:
-                await interaction.response.edit_message(embed=embed, view=view)
-            except discord.InteractionResponded:
-                await interaction.message.edit(embed=embed, view=view)
+            await ctx.send(embed=embed)
 
-        class StartDuty(discord.ui.Button):
-            def __init__(self):
-                super().__init__(label="Start Duty", style=discord.ButtonStyle.green)
-
-            async def callback(self, interaction: discord.Interaction):
-                view: Shift.ShiftManageView = self.view
-                udata = view.bot.cogs['Shift'].get_or_create_user(interaction.user.id)
-                guild = interaction.guild
-                on_duty_role, on_break_role = await view.bot.cogs['Shift'].get_or_create_status_roles(guild)
-                if udata["onduty"]:
-                    await interaction.response.send_message(embed=discord.Embed(
-                        title="Already On Duty", color=discord.Color.orange()
-                    ).set_footer(text="Shift System"), ephemeral=True)
-                    return
-                udata["onduty"] = True
-                udata["start"] = view.bot.cogs['Shift'].now_ts()
-                udata["onbreak"] = False
-                udata["breakstart"] = 0
-                await view.bot.cogs['Shift'].give_role(interaction.user, on_duty_role)
-                await view.bot.cogs['Shift'].remove_role(interaction.user, on_break_role)
-                await view.bot.cogs['Shift'].log_shift_event(interaction.user, "started their duty shift.")
-                await view.update_panel(interaction)
-
-        class GoBreak(discord.ui.Button):
-            def __init__(self):
-                super().__init__(label="Go On Break", style=discord.ButtonStyle.blurple)
-
-            async def callback(self, interaction: discord.Interaction):
-                view: Shift.ShiftManageView = self.view
-                udata = view.bot.cogs['Shift'].get_or_create_user(interaction.user.id)
-                guild = interaction.guild
-                on_duty_role, on_break_role = await view.bot.cogs['Shift'].get_or_create_status_roles(guild)
-                if not udata["onduty"]:
-                    await interaction.response.send_message(embed=discord.Embed(
-                        title="Not On Duty", color=discord.Color.red()
-                    ).set_footer(text="Shift System"), ephemeral=True)
-                    return
-                if udata["onbreak"]:
-                    await interaction.response.send_message(embed=discord.Embed(
-                        title="Already On Break", color=discord.Color.orange()
-                    ).set_footer(text="Shift System"), ephemeral=True)
-                    return
-                udata["onbreak"] = True
-                udata["breakstart"] = view.bot.cogs['Shift'].now_ts()
-                await view.bot.cogs['Shift'].give_role(interaction.user, on_break_role)
-                await view.bot.cogs['Shift'].remove_role(interaction.user, on_duty_role)
-                await view.bot.cogs['Shift'].log_shift_event(interaction.user, "went on break.")
-                await view.update_panel(interaction)
-
-        class EndBreak(discord.ui.Button):
-            def __init__(self):
-                super().__init__(label="End Break", style=discord.ButtonStyle.green)
-
-            async def callback(self, interaction: discord.Interaction):
-                view: Shift.ShiftManageView = self.view
-                udata = view.bot.cogs['Shift'].get_or_create_user(interaction.user.id)
-                guild = interaction.guild
-                on_duty_role, on_break_role = await view.bot.cogs['Shift'].get_or_create_status_roles(guild)
-                if not udata["onduty"] or not udata["onbreak"]:
-                    await interaction.response.send_message(embed=discord.Embed(
-                        title="Not On Break", color=discord.Color.orange()
-                    ).set_footer(text="Shift System"), ephemeral=True)
-                    return
-                udata["onbreak"] = False
-                udata["breakstart"] = 0
-                await view.bot.cogs['Shift'].give_role(interaction.user, on_duty_role)
-                await view.bot.cogs['Shift'].remove_role(interaction.user, on_break_role)
-                await view.bot.cogs['Shift'].log_shift_event(interaction.user, "returned from break.")
-                await view.update_panel(interaction)
-
-        class EndDuty(discord.ui.Button):
-            def __init__(self):
-                super().__init__(label="End Duty", style=discord.ButtonStyle.red)
-
-            async def callback(self, interaction: discord.Interaction):
-                view: Shift.ShiftManageView = self.view
-                udata = view.bot.cogs['Shift'].get_or_create_user(interaction.user.id)
-                guild = interaction.guild
-                on_duty_role, on_break_role = await view.bot.cogs['Shift'].get_or_create_status_roles(guild)
-                if not udata["onduty"]:
-                    await interaction.response.send_message(embed=discord.Embed(
-                        title="Not On Duty", color=discord.Color.red()
-                    ).set_footer(text="Shift System"), ephemeral=True)
-                    return
-                session_time = view.bot.cogs['Shift'].now_ts() - udata["start"] if udata["start"] else 0
-                udata["total"] += session_time
-                udata["onduty"] = False
-                udata["onbreak"] = False
-                udata["start"] = 0
-                udata["breakstart"] = 0
-                await view.bot.cogs['Shift'].remove_role(interaction.user, on_duty_role)
-                await view.bot.cogs['Shift'].remove_role(interaction.user, on_break_role)
-                await view.bot.cogs['Shift'].log_shift_event(interaction.user, f"ended their shift. ({view.bot.cogs['Shift'].humanize(session_time)} this session)")
-                await view.update_panel(interaction)
-
-    # -------- Shift Admin Panel --------
-    class ShiftAdminPanel(discord.ui.View):
-        def __init__(self, admin: discord.Member, target: discord.Member):
-            super().__init__(timeout=90)
-            self.admin = admin
-            self.target = target
-
-        async def interaction_check(self, interaction: discord.Interaction):
-            if interaction.user != self.admin:
-                await interaction.response.send_message("This panel is not for you.", ephemeral=True)
-                return False
-            return True
-
-        @discord.ui.button(label="Add Time", style=discord.ButtonStyle.green)
-        async def add_time(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_modal(self.AdminTimeModal(self.target, action="add"))
-
-        @discord.ui.button(label="Subtract Time", style=discord.ButtonStyle.red)
-        async def subtract_time(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_modal(self.AdminTimeModal(self.target, action="subtract"))
-
-        @discord.ui.button(label="Wipe All", style=discord.ButtonStyle.grey)
-        async def wipe_all(self, interaction: discord.Interaction, button: discord.ui.Button):
-            udata = self.bot.cogs['Shift'].get_or_create_user(self.target.id)
-            udata.update({"total": 0, "onduty": False, "start": 0, "onbreak": False, "breakstart": 0})
-            embed = self.bot.cogs['Shift'].create_shift_admin_embed(self.target)
-            await interaction.response.edit_message(embed=embed, view=self)
-            await interaction.followup.send(f"All shift data wiped for {self.target.mention}.", ephemeral=True)
-
-        class AdminTimeModal(discord.ui.Modal, title="Edit Shift Time"):
-            minutes = discord.ui.TextInput(label="Minutes", style=discord.TextStyle.short, required=True, placeholder="Enter the number of minutes")
-
-            def __init__(self, target: discord.Member, action: str):
-                super().__init__()
-                self.target = target
-                self.action = action
-
-            async def on_submit(self, interaction: discord.Interaction):
-                try:
-                    minutes = abs(float(self.minutes.value))
-                    seconds = int(minutes * 60)  # Convert minutes to seconds
-                except ValueError:
-                    await interaction.response.send_message("Please enter a valid number of minutes.", ephemeral=True)
-                    return
-                udata = interaction.client.cogs['Shift'].get_or_create_user(self.target.id)
-                if self.action == "add":
-                    udata["total"] += seconds
-                    msg = f"Added `{minutes:.2f}` minutes to {self.target.mention}."
-                else:
-                    udata["total"] = max(0, udata["total"] - seconds)
-                    msg = f"Subtracted `{minutes:.2f}` minutes from {self.target.mention}."
-                embed = interaction.client.cogs['Shift'].create_shift_admin_embed(self.target)
-                await interaction.message.edit(embed=embed, view=interaction.client.cogs['Shift'].ShiftAdminPanel(interaction.user, self.target))
-                await interaction.response.send_message(msg, ephemeral=True)
-
-    def create_shift_admin_embed(self, target: discord.Member):
-        udata = self.get_or_create_user(target.id)
-        embed = discord.Embed(
-            title=f"Shift Admin Panel: {target.display_name}",
-            color=discord.Color.purple()
-        )
-        embed.add_field(name="Total Duty Time", value=f"`{self.humanize(udata['total'])}`", inline=False)
-        embed.add_field(name="On Duty?", value="✅" if udata["onduty"] else "❌", inline=True)
-        embed.add_field(name="On Break?", value="✅" if udata["onbreak"] else "❌", inline=True)
-        embed.set_footer(text="Shift Admin Tools")
-        return embed
-
-    # -------- Shift Command Group --------
-    @commands.hybrid_group(name="shift", description="Manage shift-related actions.")
-    async def shift(self, ctx: commands.Context):
-        if ctx.invoked_subcommand is None:
-            await ctx.send("Invalid subcommand. Use `!shift manage`, `!shift leaderboard`, `!shift copylb`, `!shift active`, `!shift wipe`, or `!shift admin @user`.")
-
-    @shift.command(name="manage", description="Open your shift management panel.")
+    @duty.command(name="manage")
     @app_commands.describe()
-    async def manage(self, ctx: commands.Context):
-        if not any(r.id in [self.LAPD_PERSONNEL_ROLE, self.LAPD_SENIOR_ROLE] for r in ctx.author.roles):
-            await ctx.send(embed=discord.Embed(title="No Permission", description="You do not have permission to use this.", color=discord.Color.red()))
-            return
-        udata = self.get_or_create_user(ctx.author.id)
-        total = udata["total"]
-        live = self.now_ts() - udata["start"] if udata["onduty"] and not udata["onbreak"] else 0
-        breaklive = self.now_ts() - udata["breakstart"] if udata["onbreak"] else 0
-        status = "On Duty" if udata["onduty"] else "Off Duty"
-        breakstatus = "On Break" if udata["onbreak"] else ("Active" if udata["onduty"] else "N/A")
-        embed = discord.Embed(
-            title=f"{ctx.author.display_name}'s Duty Panel",
-            color=discord.Color.dark_blue()
-        )
-        if udata["onduty"] and not udata["onbreak"]:
-            embed.add_field(name="Total Duty Time", value=f"`{self.humanize(total + live)}`", inline=False)
-        elif udata["onbreak"]:
-            embed.add_field(name="Total Duty Time", value=f"`{self.humanize(total)}`", inline=False)
-            embed.add_field(name="Break Time", value=f"`{self.humanize(breaklive)}`", inline=False)
-        else:
-            embed.add_field(name="Total Duty Time", value=f"`{self.humanize(total)}`", inline=False)
-        embed.add_field(name="Status", value=status, inline=True)
-        embed.add_field(name="Break Status", value=breakstatus, inline=True)
-        embed.set_footer(text="Shift System")
-        await ctx.send(embed=embed, view=self.ShiftManageView(ctx.author, self.bot))
-
-    @shift.command(name="leaderboard", description="Display the duty time leaderboard.")
-    @app_commands.describe()
-    async def leaderboard(self, ctx: commands.Context):
-        if not any(r.id in [self.LAPD_PERSONNEL_ROLE, self.LAPD_SENIOR_ROLE] for r in ctx.author.roles):
-            await ctx.send(embed=discord.Embed(title="No Permission", description="You do not have permission to use this.", color=discord.Color.red()))
-            return
-        leaderboard = []
-        for m in ctx.guild.members:
-            if any(r.id == self.LAPD_PERSONNEL_ROLE for r in m.roles):
-                udata = self.get_or_create_user(m.id)
-                total = udata["total"]
-                if udata["onduty"] and not udata["onbreak"]:
-                    total += self.now_ts() - udata["start"]
-                leaderboard.append((m.display_name, total))
-        leaderboard.sort(key=lambda x: x[1], reverse=True)
-        desc = "\n".join(f"**{n}** — `{self.humanize(t)}`" for n, t in leaderboard)
-        if not desc:
-            desc = "No personnel found."
-        embed = discord.Embed(
-            title="Duty Leaderboard",
-            description=desc,
-            color=discord.Color.gold()
-        )
-        embed.set_footer(text="Shift System")
-        await ctx.send(embed=embed)
-
-    @shift.command(name="copylb", description="Copy the replied leaderboard embed and add your data to the actual leaderboard.")
-    @app_commands.describe()
-    async def copylb(self, ctx: commands.Context):
-        if not any(r.id in [self.LAPD_PERSONNEL_ROLE, self.LAPD_SENIOR_ROLE] for r in ctx.author.roles):
-            await ctx.send(embed=discord.Embed(
-                title="No Permission",
-                description="You do not have permission to use this.",
+    async def duty_manage(self, ctx: commands.Context):
+        await ctx.defer()
+        if not await self.has_shift_basic(ctx.author):
+            embed = discord.Embed(
+                title="UNAUTHORIZED",
+                description="You need the Shift Basic or Shift Admin role to use this command.",
                 color=discord.Color.red()
-            ))
-            return
-
-        # Check if the command is a reply to a message
-        if not ctx.message.reference or not ctx.message.reference.message_id:
-            await ctx.send(embed=discord.Embed(
-                title="No Reply",
-                description="Please reply to a leaderboard message to use this command.",
-                color=discord.Color.red()
-            ))
+            )
+            await ctx.send(embed=embed)
             return
 
         try:
-            # Fetch the replied message
-            replied_message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-            if not replied_message.embeds or replied_message.author != self.bot.user:
-                await ctx.send(embed=discord.Embed(
-                    title="Invalid Leaderboard",
-                    description="The replied message is not a valid leaderboard embed from this bot.",
-                    color=discord.Color.red()
-                ))
-                return
+            data = self.load_shifts()
+            user_id = str(ctx.author.id)
+            user_data = data["users"].setdefault(user_id, {"active": False, "total_duration": 0, "history": []})
+            total_duration = user_data["total_duration"]
 
-            # Get the leaderboard embed
-            leaderboard_embed = replied_message.embeds[0]
-            if leaderboard_embed.title != "Duty Leaderboard" or not leaderboard_embed.description:
-                await ctx.send(embed=discord.Embed(
-                    title="Invalid Leaderboard",
-                    description="The replied message is not a valid leaderboard embed.",
-                    color=discord.Color.red()
-                ))
-                return
-
-            # Parse the existing leaderboard
-            leaderboard = []
-            lines = leaderboard_embed.description.split("\n")
-            if lines == ["No personnel found."]:
-                leaderboard = []
-            else:
-                for line in lines:
-                    if " — " in line:
-                        name, time_str = line.split(" — ")
-                        name = name.strip("**")
-                        time_str = time_str.strip("`")
-                        leaderboard.append((name, time_str))
-
-            # Function to convert time string to seconds
-            def time_to_seconds(time_str):
-                h, m, s = 0, 0, 0
-                parts = time_str.split()
-                for part in parts:
-                    if part.endswith("h"):
-                        h = int(part[:-1])
-                    elif part.endswith("m"):
-                        m = int(part[:-1])
-                    elif part.endswith("s"):
-                        s = int(part[:-1])
-                return h * 3600 + m * 60 + s
-
-            # Update self.data with leaderboard data
-            for member in ctx.guild.members:
-                for name, time_str in leaderboard:
-                    if member.display_name == name:
-                        udata = self.get_or_create_user(member.id)
-                        udata["total"] = time_to_seconds(time_str)
-
-            # Add or update the user's data
-            udata = self.get_or_create_user(ctx.author.id)
-            total = udata["total"]
-            if udata["onduty"] and not udata["onbreak"]:
-                total += self.now_ts() - udata["start"]
-            leaderboard.append((ctx.author.display_name, self.humanize(total)))
-
-            # Sort leaderboard by total time
-            leaderboard.sort(key=lambda x: time_to_seconds(x[1]), reverse=True)
-
-            # Create new description
-            desc = "\n".join(f"**{n}** — `{t}`" for n, t in leaderboard)
-            if not desc:
-                desc = "No personnel found."
-
-            # Create new embed
             embed = discord.Embed(
-                title="Duty Leaderboard (Updated)",
-                description=desc,
-                color=discord.Color.gold()
+                title="Shift Management",
+                description="Use the buttons below to start or end your shift.",
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text="Shift System")
+            embed.add_field(name="Total Duty Time", value=f"{total_duration} minutes")
+            embed.add_field(name="Active", value="Yes" if user_data["active"] else "No")
+            await ctx.send(embed=embed, view=ShiftButtons(ctx.author.id, self))
+        except Exception as e:
+            logger.error(f"Error in duty_manage: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
             await ctx.send(embed=embed)
 
-            # Log the event
-            await self.log_shift_event(ctx.author, f"copied and updated the leaderboard with their data ({self.humanize(total)}).")
-
-        except discord.errors.NotFound:
-            await ctx.send(embed=discord.Embed(
-                title="Error",
-                description="The replied message could not be found.",
+    @duty.command(name="active")
+    @app_commands.describe()
+    async def duty_active(self, ctx: commands.Context):
+        await ctx.defer()
+        if not await self.has_shift_basic(ctx.author):
+            embed = discord.Embed(
+                title="UNAUTHORIZED",
+                description="You need the Shift Basic or Shift Admin role to use this command.",
                 color=discord.Color.red()
-            ))
+            )
+            await ctx.send(embed=embed)
+            return
+
+        try:
+            data = self.load_shifts()
+            active_users = [
+                f"<@{user_id}> (Started: {datetime.fromisoformat(user_data['start_time']).strftime('%Y-%m-%d %H:%M:%S UTC')})"
+                for user_id, user_data in data["users"].items() if user_data["active"]
+            ]
+            embed = discord.Embed(
+                title="Active Shifts",
+                description="\n".join(active_users) if active_users else "No active shifts.",
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await ctx.send(embed=embed, view=ActiveButtons(self))
         except Exception as e:
-            await ctx.send(embed=discord.Embed(
+            logger.error(f"Error in duty_active: {e}")
+            embed = discord.Embed(
                 title="Error",
-                description=f"An error occurred: {str(e)}",
+                description="An unexpected error occurred.",
                 color=discord.Color.red()
-            ))
+            )
+            await ctx.send(embed=embed)
 
-    @shift.command(name="active", description="List currently on-duty and on-break members.")
-    @app_commands.describe()
-    async def active(self, ctx: commands.Context):
-        on_duty_role, on_break_role = await self.get_or_create_status_roles(ctx.guild)
-        active = []
-        on_break = []
-        for m in ctx.guild.members:
-            udata = self.get_or_create_user(m.id)
-            if on_duty_role in m.roles and not udata["onbreak"]:
-                live = self.now_ts() - udata.get("start", self.now_ts())
-                total = udata["total"] + live
-                active.append((m.display_name, self.humanize(total)))
-            if on_break_role in m.roles and udata["onbreak"]:
-                breaklive = self.now_ts() - udata.get("breakstart", self.now_ts())
-                on_break.append((m.display_name, self.humanize(breaklive)))
-        desc = ""
-        if active:
-            desc += "**On Duty:**\n" + "\n".join(f"{n} — `{t}`" for n, t in active) + "\n"
-        if on_break:
-            desc += "\n**On Break:**\n" + "\n".join(f"{n} — `{t}`" for n, t in on_break)
-        if not desc:
-            desc = "No one is currently on duty."
-        embed = discord.Embed(
-            title="Currently On Duty & On Break",
-            description=desc,
-            color=discord.Color.blue()
-        )
-        embed.set_footer(text="Shift System")
-        await ctx.send(embed=embed)
-
-    @shift.command(name="wipe", description="Wipe all shift data (Senior role only).")
-    @app_commands.describe()
-    async def wipe(self, ctx: commands.Context):
-        if not any(r.id == self.LAPD_SENIOR_ROLE for r in ctx.author.roles):
-            await ctx.send(embed=discord.Embed(
-                title="No Permission",
-                description="You do not have permission to use this.",
+    @duty.command(name="admin")
+    @app_commands.describe(user="The user to manage shifts for")
+    async def duty_admin(self, ctx: commands.Context, user: discord.Member):
+        await ctx.defer()
+        if not await self.has_shift_admin(ctx.author):
+            embed = discord.Embed(
+                title="UNAUTHORIZED",
+                description="You need the Shift Admin role to use this command.",
                 color=discord.Color.red()
-            ))
+            )
+            await ctx.send(embed=embed)
             return
-        self.data.clear()  # Clear in-memory data
-        await ctx.send(embed=discord.Embed(
-            title="All Shift Data Wiped!",
-            description="Every shift record has been reset. Note: Data will also reset when the bot restarts.",
-            color=discord.Color.red()
-        ))
 
-    @shift.command(name="admin", description="Manage a user's shift data (Senior role only).")
-    @app_commands.describe(member="The user to manage shift data for")
-    async def admin(self, ctx: commands.Context, member: discord.Member = None):
-        if not any(r.id == self.LAPD_SENIOR_ROLE for r in ctx.author.roles):
-            await ctx.send(embed=discord.Embed(title="No Permission", description="You do not have permission.", color=discord.Color.red()))
+        try:
+            embed = discord.Embed(
+                title=f"Shift admin : {user.display_name}",
+                description="Use the buttons below.",
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await ctx.send(embed=embed, view=AdminButtons(user.id, self))
+        except Exception as e:
+            logger.error(f"Error in duty_admin: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+
+    @duty.command(name="leaderboard")
+    @app_commands.describe()
+    async def duty_leaderboard(self, ctx: commands.Context):
+        await ctx.defer()
+        if not await self.has_shift_basic(ctx.author):
+            embed = discord.Embed(
+                title="UNAUTHORIZED",
+                description="You need the Shift Basic or Shift Admin role to use this command.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
             return
-        if member is None:
-            await ctx.send("Usage: !shift admin @user or /shift admin @user")
+
+        try:
+            data = self.load_shifts()
+            guild = ctx.guild
+            shift_users = []
+            for member in guild.members:
+                if await self.has_shift_basic(member):
+                    user_id = str(member.id)
+                    total_duration = data["users"].get(user_id, {"total_duration": 0})["total_duration"]
+                    shift_users.append((member, total_duration))
+            
+            shift_users.sort(key=lambda x: x[1], reverse=True)
+            leaderboard = [
+                f"{i+1}. {member.mention}: {duration} minutes"
+                for i, (member, duration) in enumerate(shift_users[:100])  # Limit to top 100
+            ]
+            embed = discord.Embed(
+                title="Shift Leaderboard",
+                description="\n".join(leaderboard) if leaderboard else "No users with shift permissions.",
+                color=discord.Color.gold(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await ctx.send(embed=embed, view=LeaderboardButtons(self))
+        except Exception as e:
+            logger.error(f"Error in duty_leaderboard: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+
+    @duty.command(name="erase")
+    @app_commands.describe()
+    async def duty_erase(self, ctx: commands.Context):
+        await ctx.defer()
+        if not await self.has_shift_admin(ctx.author):
+            embed = discord.Embed(
+                title="UNAUTHORIZED",
+                description="You need the Shift Admin role to use this command.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
             return
-        embed = self.create_shift_admin_embed(member)
-        view = self.ShiftAdminPanel(ctx.author, member)
-        await ctx.send(embed=embed, view=view)
+
+        try:
+            embed = discord.Embed(
+                title="Erase All Shift Data",
+                description="Confirm or cancel erasing all shift data for all users.",
+                color=discord.Color.blue(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await ctx.send(embed=embed, view=EraseButtons(self))
+        except Exception as e:
+            logger.error(f"Error in duty_erase: {e}")
+            embed = discord.Embed(
+                title="Error",
+                description="An unexpected error occurred.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Shift(bot))
+    logger.info("Shift cog loaded")
