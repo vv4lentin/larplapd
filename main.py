@@ -7,12 +7,13 @@ import json
 import keep_alive
 import time
 import re
+import dotenv
+from dotenv import load_dotenv
 from collections import Counter
-from keep_alive import keep_alive
 
 # Configuration
 GUILD_ID = 1292523481539543193  # Your guild ID
-BOT_TOKEN = os.getenv("BOT_TOKEN") or "MTM3NTk3NzI4Mjg1MzY3MTExMw.GsT2gi.9KQThQd57nEbRNHm1bEO2uOoE1BnAydsDiqjWA"  # Replace with your bot token
+TOKEN = os.getenv("DISCORD_TOKEN") # Replace with your bot token
 SHARED_PANEL_CHANNEL = 1294756718693060740  # Shared panel channel ID for Sub-Divisions
 ANNOUNCEMENT_CHANNEL_ID = 1292541250775290097
 ALLOWED_ROLE_IDS = [1337050305153470574, 1361565373593292851]
@@ -26,6 +27,8 @@ intents.guilds = True
 intents.members = True
 intents.presences = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+load_dotenv()
 
 # Application configuration
 APPLICATIONS = {
@@ -779,7 +782,7 @@ async def main():
     await load_extensions()
     keep_alive()
     try:
-        await bot.start(BOT_TOKEN)
+        await bot.start(TOKEN)
     except Exception as e:
         print(f"Failed to start bot: {e}")
 
