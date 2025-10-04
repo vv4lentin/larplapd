@@ -780,7 +780,6 @@ async def load_extensions():
 # Main function
 async def main():
     await load_extensions()
-    keep_alive()
     try:
         await bot.start(TOKEN)
     except Exception as e:
